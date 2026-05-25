@@ -7,6 +7,10 @@ const SUPABASE_CONFIGURED =
   process.env.NEXT_PUBLIC_SUPABASE_URL !== 'https://placeholder.supabase.co';
 
 function migrateEntry(e: Record<string, string>): ShoeEntry {
+  const qtyFields: Record<string, string> = {};
+  for (let i = 15; i <= 47; i++) {
+    qtyFields[`qty_${i}`] = e[`qty_${i}`] || '';
+  }
   return {
     id: e.id,
     created_at: e.created_at,
@@ -19,12 +23,14 @@ function migrateEntry(e: Record<string, string>): ShoeEntry {
     color: e.color || '',
     section: e.section || e.attr_section || '',
     season: e.season || e.attr_season || '',
-    set_qty: e.set_qty || e.attr_set_qty || '',
-    size_set: e.size_set || e.attr_size_set || '',
     pur_price: e.pur_price || '',
+    size_set: e.size_set || e.attr_size_set || '',
+    set_qty: e.set_qty || e.attr_set_qty || '',
+    kids_size: e.kids_size || '',
+    ...qtyFields,
     notes: e.notes || '',
     sketch_data: e.sketch_data || '',
-  };
+  } as ShoeEntry;
 }
 
 function localEntries(): ShoeEntry[] {
