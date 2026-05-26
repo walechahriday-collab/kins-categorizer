@@ -66,6 +66,7 @@ section: ${allSections.join(' | ')}
 season: ${SEASONS.join(' | ')}
 kids_size (Kids only): XS|S|M|L|XL
 article_no, pur_price: free text
+notes: capture everything after "notes" or "note" until end of speech — free text, preserve as spoken
 
 COLORS (spoken→code): black→BLK, white→WHT, brown→BRN, red→RED, blue→BLU, gold→GLD, silver→SIL, green→GRN, grey→GRY, tan→TAN, nude→NUD, navy→NAV, orange→ORG, pink→PNK, purple→PPL, antique→ANT, copper→COP, coffee→COF, cream→CRM, mustard→MST, maroon→MRN, fuchsia→FUS, beige→BEG, champagne→CHP, khaki→KHK
 
@@ -160,7 +161,7 @@ function normaliseFields(raw: Record<string, unknown>, department?: string): Rec
       const sizeNum = parseInt(key.replace('qty_', ''));
       const qty = parseFloat(value);
       if (!isNaN(qty) && validSizes.includes(sizeNum)) out[key] = String(Math.round(qty));
-    } else if (key === 'pur_price' || key === 'article_no' || key === 'size_set' || key === 'set_qty') {
+    } else if (key === 'pur_price' || key === 'article_no' || key === 'size_set' || key === 'set_qty' || key === 'notes') {
       out[key] = value;
     }
   }
