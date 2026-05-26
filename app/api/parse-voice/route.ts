@@ -19,6 +19,22 @@ function preprocessTranscript(t: string): string {
     // British / Indian English spellings
     .replace(/\bcolour\b/gi, 'color')
     .replace(/\bcolours\b/gi, 'colors')
+    // Hinglish number words
+    .replace(/\bek\b/gi, '1')
+    .replace(/\bdo\b/gi, '2')
+    .replace(/\bteen\b/gi, '3')
+    .replace(/\bchar\b/gi, '4')
+    .replace(/\bpaanch\b/gi, '5')
+    .replace(/\bchhey\b/gi, '6')
+    .replace(/\bsaat\b/gi, '7')
+    .replace(/\baath\b/gi, '8')
+    .replace(/\bnau\b/gi, '9')
+    .replace(/\bdas\b/gi, '10')
+    // Hinglish quantity/size phrases
+    .replace(/\bset\s+matra\b/gi, 'set qty')
+    .replace(/\brang\b/gi, 'color')
+    .replace(/\bsize\s+set\s+se\b/gi, 'size set')
+    .replace(/\bse\b/gi, 'to')
     // Ordinal color references → numbered
     .replace(/\bfirst\s+color\b/gi, 'color 1')
     .replace(/\bsecond\s+color\b/gi, 'color 2')
@@ -69,6 +85,7 @@ article_no, pur_price: free text
 notes: capture everything after "notes" or "note" until end of speech — free text, preserve as spoken
 
 COLORS (spoken→code): black→BLK, white→WHT, brown→BRN, red→RED, blue→BLU, gold→GLD, silver→SIL, green→GRN, grey→GRY, tan→TAN, nude→NUD, navy→NAV, orange→ORG, pink→PNK, purple→PPL, antique→ANT, copper→COP, coffee→COF, cream→CRM, mustard→MST, maroon→MRN, fuchsia→FUS, beige→BEG, champagne→CHP, khaki→KHK
+HINDI COLOR ALIASES: kaala/kala→BLK, safed→WHT, bhura/bhoora/bhoori→BRN, laal/lal→RED, neela/nila/neeli→BLU, sona/sunehra→GLD, chandi/chaandi→SIL, hara/hari/hara→GRN, grey/sleti→GRY, narangi→ORG, gulabi→PNK, baingani/jamuni→PPL, peela/sarson→MST, maroon→MRN, cream/malai→CRM
 
 CATEGORY ALIASES: bridal shoes→Bridalshoes(L)/Bridal Shoes(K), sport shoes→Sport Shoes(M), sports shoes→Sports Shoes(K), comfort walker→Comfortwalker, sandal→Sandal(L/M)/Sandals(K), lace up→Laceup, v shape→Vshape, party wear→Partywear
 
