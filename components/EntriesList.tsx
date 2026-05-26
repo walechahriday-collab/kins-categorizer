@@ -47,10 +47,16 @@ export default function EntriesList({ entries, loading, onEntryClick, onDelete }
         const title = entry.category || entry.department || '—';
         const picture = entry.picture || (entry as unknown as Record<string, string>).photo_url || '';
 
+        // Collect colors from variants
+        let variantColors: string[] = [];
+        try {
+          const vv = JSON.parse(entry.color_variants || '[]');
+          variantColors = vv.map((v: { color?: string }) => v.color).filter(Boolean);
+        } catch { variantColors = entry.color ? [entry.color] : []; }
+
         const tags = [
           entry.department,
           entry.sub_category,
-          entry.color,
           entry.heels,
           entry.season,
           entry.section,
@@ -110,9 +116,25 @@ export default function EntriesList({ entries, loading, onEntryClick, onDelete }
                 </span>
               </div>
 
-              {tags.length > 0 && (
+              {(tags.length > 0 || variantColors.length > 0) && (
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {tags.slice(0, 6).map((tag) => (
+                  {variantColors.map((c, i) => (
+                    <span
+                      key={`color-${i}`}
+                      className="px-2 py-0.5 rounded-full"
+                      style={{
+                        background: 'rgba(196,21,21,0.07)',
+                        color: '#c41515',
+                        fontSize: '0.58rem',
+                        letterSpacing: '0.08em',
+                        fontWeight: 600,
+                        border: '1px solid rgba(196,21,21,0.2)',
+                      }}
+                    >
+                      {c}
+                    </span>
+                  ))}
+                  {tags.slice(0, 4).map((tag) => (
                     <span
                       key={tag}
                       className="px-2 py-0.5 rounded-full"

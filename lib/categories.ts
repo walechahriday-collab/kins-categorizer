@@ -65,6 +65,30 @@ export const KIDS_SIZE_RANGES: Record<string, number[]> = {
 
 export const SEASONS = ['Summer', 'Winter'] as const;
 
+export type ColorVariant = {
+  color: string;
+  size_set: string;
+  set_qty: string;
+  qty_15: string; qty_16: string; qty_17: string; qty_18: string; qty_19: string;
+  qty_20: string; qty_21: string; qty_22: string; qty_23: string; qty_24: string;
+  qty_25: string; qty_26: string; qty_27: string; qty_28: string; qty_29: string;
+  qty_30: string; qty_31: string; qty_32: string; qty_33: string; qty_34: string;
+  qty_35: string; qty_36: string; qty_37: string; qty_38: string; qty_39: string;
+  qty_40: string; qty_41: string; qty_42: string; qty_43: string; qty_44: string;
+  qty_45: string; qty_46: string; qty_47: string;
+};
+
+export const emptyVariant = (): ColorVariant => ({
+  color: '', size_set: '', set_qty: '',
+  qty_15: '', qty_16: '', qty_17: '', qty_18: '', qty_19: '',
+  qty_20: '', qty_21: '', qty_22: '', qty_23: '', qty_24: '',
+  qty_25: '', qty_26: '', qty_27: '', qty_28: '', qty_29: '',
+  qty_30: '', qty_31: '', qty_32: '', qty_33: '', qty_34: '',
+  qty_35: '', qty_36: '', qty_37: '', qty_38: '', qty_39: '',
+  qty_40: '', qty_41: '', qty_42: '', qty_43: '', qty_44: '',
+  qty_45: '', qty_46: '', qty_47: '',
+});
+
 export type ShoeEntry = {
   id?: string;
   created_at?: string;
@@ -74,14 +98,14 @@ export type ShoeEntry = {
   sub_category: string;
   article_no: string;
   heels: string;
-  color: string;
+  color: string;       // legacy / variant[0].color mirror
   section: string;
   season: string;
   pur_price: string;
-  size_set: string;
-  set_qty: string;
+  size_set: string;    // legacy
+  set_qty: string;     // legacy
   kids_size: string;
-  // Size quantities 15–47
+  // Size quantities 15–47 (legacy flat fields, mirrored from variant 0)
   qty_15: string; qty_16: string; qty_17: string; qty_18: string; qty_19: string;
   qty_20: string; qty_21: string; qty_22: string; qty_23: string; qty_24: string;
   qty_25: string; qty_26: string; qty_27: string; qty_28: string; qty_29: string;
@@ -89,6 +113,7 @@ export type ShoeEntry = {
   qty_35: string; qty_36: string; qty_37: string; qty_38: string; qty_39: string;
   qty_40: string; qty_41: string; qty_42: string; qty_43: string; qty_44: string;
   qty_45: string; qty_46: string; qty_47: string;
+  color_variants: string; // JSON-stringified ColorVariant[]
   notes: string;
   sketch_data: string;
 };
@@ -104,5 +129,6 @@ export const emptyEntry = (): Omit<ShoeEntry, 'id' | 'created_at'> => ({
   qty_35: '', qty_36: '', qty_37: '', qty_38: '', qty_39: '',
   qty_40: '', qty_41: '', qty_42: '', qty_43: '', qty_44: '',
   qty_45: '', qty_46: '', qty_47: '',
+  color_variants: JSON.stringify([emptyVariant()]),
   notes: '', sketch_data: '',
 });
