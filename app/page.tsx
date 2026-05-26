@@ -5,6 +5,7 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState, useCallback } from 'react';
 import BoardModal from '@/components/BoardModal';
 import EntriesList from '@/components/EntriesList';
+import PinGate from '@/components/PinGate';
 import { ShoeEntry } from '@/lib/categories';
 import { fetchEntries, deleteEntry, clearAllEntries } from '@/lib/storage';
 import { exportToExcel } from '@/lib/exportExcel';
@@ -61,6 +62,7 @@ export default function Home() {
   useEffect(() => { loadEntries(); }, [loadEntries]);
 
   return (
+    <PinGate>
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
 
       {/* ── Header ── */}
@@ -235,5 +237,6 @@ export default function Home() {
         initialEntry={editEntry}
       />
     </div>
+    </PinGate>
   );
 }
