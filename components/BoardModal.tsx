@@ -145,7 +145,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
         setLiveText(interim || fullTranscriptRef.current);
         if (newFinal.trim()) {
           if (debounceRef.current) clearTimeout(debounceRef.current);
-          debounceRef.current = setTimeout(() => sendToClaude(fullTranscriptRef.current), 500);
+          debounceRef.current = setTimeout(() => sendToClaude(fullTranscriptRef.current), 1500);
         }
       };
       recog.onend = () => {

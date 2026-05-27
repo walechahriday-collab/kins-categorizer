@@ -35,6 +35,16 @@ function preprocessTranscript(t: string): string {
     .replace(/\bsize\s+said\b/gi, 'size set')
     .replace(/\bsize\s+sat\b/gi, 'size set')
     .replace(/\bsize\s+sad\b/gi, 'size set')
+    .replace(/\bsizes\s+at\b/gi, 'size set')
+    .replace(/\bsized\b/gi, 'size set')
+    // Common mishearings of "wedge"
+    .replace(/\bwage\b/gi, 'wedge')
+    .replace(/\bwich\b/gi, 'wedge')
+    .replace(/\bwich\b/gi, 'wedge')
+    .replace(/\bwage\b/gi, 'wedge')
+    .replace(/\bwej\b/gi, 'wedge')
+    .replace(/\bmedium\s+which\b/gi, 'medium wedge')
+    .replace(/\bmedium\s+wage\b/gi, 'medium wedge')
     // Ordinal color references → numbered
     .replace(/\bfirst\s+color\b/gi, 'color 1')
     .replace(/\bsecond\s+color\b/gi, 'color 2')
