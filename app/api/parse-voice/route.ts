@@ -100,7 +100,7 @@ HINDI COLOR ALIASES: kaala/kala→BLK, safed→WHT, bhura/bhoora/bhoori→BRN, l
 CATEGORY ALIASES: bridal shoes→Bridalshoes(L)/Bridal Shoes(K), sport shoes→Sport Shoes(M), sports shoes→Sports Shoes(K), comfort walker→Comfortwalker, sandal→Sandal(L/M)/Sandals(K), lace up→Laceup, v shape→Vshape, party wear→Partywear
 
 SIZE RULES:
-- size_set: any range like "size set 35 to 40", "size 35 to 40", "35 to 40" → "35-40". Always output as vN_size_set.
+- size_set: ONLY output when user explicitly says "size set X", "size X to Y", or "size set X to Y" → "X-Y" or "X". NEVER infer size_set from individual qty pairs like "36 2 37 2 38 2" — those are quantities only.
 - qty_NN: SIZE then QTY (adjacent, "is" optional): "36 2" or "36 is 2" → qty_36:2. Parse EVERY pair, never skip.
 - kids_size: XS/S/M/L/XL only — "size medium" → kids_size:M
 
