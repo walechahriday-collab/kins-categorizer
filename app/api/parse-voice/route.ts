@@ -201,7 +201,7 @@ function normaliseFields(raw: Record<string, unknown>, department?: string): Rec
 // ─── Route handler ────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
-    const { transcript, department } = await req.json();
+    const { transcript, department, existingColors } = await req.json();
     if (!transcript?.trim()) return NextResponse.json({ fields: {} });
 
     // Pre-process spoken transcript before sending to Claude
@@ -221,6 +221,9 @@ export async function POST(req: NextRequest) {
       `\ncategory (${department || 'any dept'}): ${deptCategories.join(' | ')}`,
       validSizes
         ? `\nVALID shoe sizes for ${department}: [${validSizes.join(', ')}] — ONLY output qty_N for sizes in this list`
+        : '',
+      existingColors?.length
+        ? `\nEXISTING VARIANTS: ${existingColors.join(', ')} — if user mentions one of these colors by name WITHOUT a color number, use the matching variant index instead of v0_.`
         : '',
     ].join('');
 

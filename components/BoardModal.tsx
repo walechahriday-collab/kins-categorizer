@@ -74,11 +74,21 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
   const entryRef = useRef(entry);
   useEffect(() => { entryRef.current = entry; }, [entry]);
 
+  const variantsRef = useRef(variants);
+  useEffect(() => { variantsRef.current = variants; }, [variants]);
+
   const sendToClaude = useCallback((transcript: string) => {
+    const existingColors = variantsRef.current
+      .map((v, i) => v.color ? `color ${i + 1}=${v.color}` : null)
+      .filter(Boolean);
     fetch('/api/parse-voice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript, department: entryRef.current.department }),
+      body: JSON.stringify({
+        transcript,
+        department: entryRef.current.department,
+        existingColors: existingColors.length ? existingColors : undefined,
+      }),
     })
       .then(r => r.json())
       .then(({ fields }) => {

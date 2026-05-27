@@ -108,7 +108,8 @@ export async function fetchEntries(): Promise<ShoeEntry[]> {
 
 export async function deleteEntry(id: string): Promise<void> {
   if (SUPABASE_CONFIGURED) {
-    await supabase.from('shoe_categorizations').delete().eq('id', id);
+    const { error } = await supabase.from('shoe_categorizations').delete().eq('id', id);
+    if (error) throw error;
     return;
   }
   writeLocal(localEntries().filter((e) => e.id !== id));
@@ -116,7 +117,8 @@ export async function deleteEntry(id: string): Promise<void> {
 
 export async function clearAllEntries(): Promise<void> {
   if (SUPABASE_CONFIGURED) {
-    await supabase.from('shoe_categorizations').delete().neq('id', '');
+    const { error } = await supabase.from('shoe_categorizations').delete().not('id', 'is', null);
+    if (error) throw error;
     return;
   }
   writeLocal([]);
