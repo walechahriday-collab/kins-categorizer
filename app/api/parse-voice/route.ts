@@ -19,22 +19,22 @@ function preprocessTranscript(t: string): string {
     // British / Indian English spellings
     .replace(/\bcolour\b/gi, 'color')
     .replace(/\bcolours\b/gi, 'colors')
-    // Hinglish number words
+    // Hinglish — only words that don't collide with English
     .replace(/\bek\b/gi, '1')
-    .replace(/\bdo\b/gi, '2')
-    .replace(/\bteen\b/gi, '3')
-    .replace(/\bchar\b/gi, '4')
     .replace(/\bpaanch\b/gi, '5')
     .replace(/\bchhey\b/gi, '6')
     .replace(/\bsaat\b/gi, '7')
     .replace(/\baath\b/gi, '8')
     .replace(/\bnau\b/gi, '9')
-    .replace(/\bdas\b/gi, '10')
-    // Hinglish quantity/size phrases
+    // Hinglish phrases
     .replace(/\bset\s+matra\b/gi, 'set qty')
     .replace(/\brang\b/gi, 'color')
-    .replace(/\bsize\s+set\s+se\b/gi, 'size set')
-    .replace(/\bse\b/gi, 'to')
+    // "X se Y" size range (Hindi: se = from/to)
+    .replace(/\b(\d{2})\s+se\s+(\d{2})\b/gi, '$1 to $2')
+    // Common mishearings of "size set" by en-IN speech API
+    .replace(/\bsize\s+said\b/gi, 'size set')
+    .replace(/\bsize\s+sat\b/gi, 'size set')
+    .replace(/\bsize\s+sad\b/gi, 'size set')
     // Ordinal color references → numbered
     .replace(/\bfirst\s+color\b/gi, 'color 1')
     .replace(/\bsecond\s+color\b/gi, 'color 2')
@@ -56,7 +56,7 @@ function preprocessTranscript(t: string): string {
     .replace(/\bpurchase\s+price\b/gi, 'pur price')
     // "size range" → "size set"
     .replace(/\bsize\s+range\b/gi, 'size set')
-    // Number words → digits (safe: uses word boundaries so won't hit "section", etc.)
+    // Number words → digits
     .replace(/\bzero\b/gi,  '0')
     .replace(/\bone\b/gi,   '1')
     .replace(/\btwo\b/gi,   '2')
@@ -90,23 +90,26 @@ HINDI COLOR ALIASES: kaala/kala→BLK, safed→WHT, bhura/bhoora/bhoori→BRN, l
 CATEGORY ALIASES: bridal shoes→Bridalshoes(L)/Bridal Shoes(K), sport shoes→Sport Shoes(M), sports shoes→Sports Shoes(K), comfort walker→Comfortwalker, sandal→Sandal(L/M)/Sandals(K), lace up→Laceup, v shape→Vshape, party wear→Partywear
 
 SIZE RULES:
-- size_set: range string ONLY when user says "size set 35 to 40" → "35-40"
-- qty_NN: quantity per size — pattern is SIZE then QTY (adjacent, "is" optional): "36 2" or "36 is 2" → qty_36:2. Parse EVERY pair, never skip.
+- size_set: any range like "size set 35 to 40", "size 35 to 40", "35 to 40" → "35-40". Always output as vN_size_set.
+- qty_NN: SIZE then QTY (adjacent, "is" optional): "36 2" or "36 is 2" → qty_36:2. Parse EVERY pair, never skip.
 - kids_size: XS/S/M/L/XL only — "size medium" → kids_size:M
 
-MULTI-COLOR VARIANTS (up to 6):
-"color 1"→v0_, "color 2"→v1_, "color 3"→v2_, "color 4"→v3_, "color 5"→v4_, "color 6"→v5_
-Per variant: v{N}_color, v{N}_size_set, v{N}_set_qty, v{N}_qty_35...
-Everything after "color N" belongs to v{N-1}_ until next "color" marker.
-No color number mentioned → use v0_.
+VARIANT RULES — CRITICAL:
+- ALL color/size/qty fields MUST use vN_ prefix. NEVER output bare "color", "size_set", "set_qty", "qty_NN".
+- No color number mentioned → EVERYTHING goes to v0_ (default variant).
+- "color 1"→v0_, "color 2"→v1_, "color 3"→v2_, "color 4"→v3_, "color 5"→v4_, "color 6"→v5_
+- Everything after "color N" belongs to v{N-1}_ until next color marker.
 
 EXAMPLES:
-"color 1 black set qty 8 35 1 36 2 37 2 38 1, color 2 red set qty 6 36 1 37 2 38 1"
-→{"v0_color":"BLK","v0_set_qty":"8","v0_qty_35":"1","v0_qty_36":"2","v0_qty_37":"2","v0_qty_38":"1","v1_color":"RED","v1_set_qty":"6","v1_qty_36":"1","v1_qty_37":"2","v1_qty_38":"1"}
+"sandal black size set 36 to 40 set qty 5 36 1 37 2 38 2"
+→{"category":"Sandal","v0_color":"BLK","v0_size_set":"36-40","v0_set_qty":"5","v0_qty_36":"1","v0_qty_37":"2","v0_qty_38":"2"}
+
+"color 1 black set qty 8 36 2 37 2 38 1 color 2 red set qty 6 36 1 37 2 38 1"
+→{"v0_color":"BLK","v0_set_qty":"8","v0_qty_36":"2","v0_qty_37":"2","v0_qty_38":"1","v1_color":"RED","v1_set_qty":"6","v1_qty_36":"1","v1_qty_37":"2","v1_qty_38":"1"}
 
 "color 3 42 2" → {"v2_qty_42":"2"}
 
-Ignore: hi okay um please add the and. Return ONLY valid JSON.`;
+Ignore filler words: hi okay um please the and. Return ONLY valid JSON.`;
 
 // ─── Fuzzy matcher ────────────────────────────────────────────────────────────
 function bestMatch(value: string, options: readonly string[]): string | null {
