@@ -4,18 +4,18 @@ export const DEPT_CATEGORIES: Record<string, readonly string[]> = {
   'Ladies Footwears': [
     'Ballerina', 'Boots', 'Bridalshoes', 'Comfortwalker', 'Comfyhomewear',
     'Crocs', 'Floater', 'Jutti', 'Kolhapuri', 'Loafer', 'Mules', 'Pumps',
-    'Sandal', 'Slipper', 'Sneakers', 'Sportshoes', 'Vshape',
+    'Sandal', 'Slipper', 'Sneaker', 'Sportshoes', 'Vshape',
   ],
   'Kids Footwears': [
     'Ballerinas', 'Booties', 'Boots', 'Bridal Shoes', 'Comfy Home Wear',
     'Crocs', 'Floater', 'Jutti', 'Laceup', 'Loafer', 'Long Boot', 'Moccasin',
-    'Mules', 'Peshawari', 'Sandals', 'School Shoes', 'Slipper', 'Sneakers',
+    'Mules', 'Peshawari', 'Sandals', 'School Shoes', 'Slipper', 'Sneaker',
     'Sports Shoes', 'Vshape',
   ],
   'Mens Footwears': [
     'Boots', 'Comfyhomewear', 'Crocs', 'Floater', 'Jutti', 'Kohlapuri',
     'Laceup', 'Loafer', 'Moccasin', 'Mules', 'Peshawari', 'Sandal',
-    'Slipper', 'Sneakers', 'Sport Shoes', 'Vshape',
+    'Slipper', 'Sneaker', 'Sport Shoes', 'Vshape',
   ],
 };
 
@@ -64,6 +64,8 @@ export const KIDS_SIZE_RANGES: Record<string, number[]> = {
 };
 
 export const SEASONS = ['Summer', 'Winter'] as const;
+
+export const LOGO_OPTIONS = ['Ket Importa and Kins', 'Kins', 'Ket Importa'] as const;
 
 export type ColorVariant = {
   color: string;
@@ -116,6 +118,7 @@ export type ShoeEntry = {
   color_variants: string; // JSON-stringified ColorVariant[]
   notes: string;
   sketch_data: string;
+  logo: string;
 };
 
 export const emptyEntry = (): Omit<ShoeEntry, 'id' | 'created_at'> => ({
@@ -130,5 +133,5 @@ export const emptyEntry = (): Omit<ShoeEntry, 'id' | 'created_at'> => ({
   qty_40: '', qty_41: '', qty_42: '', qty_43: '', qty_44: '',
   qty_45: '', qty_46: '', qty_47: '',
   color_variants: JSON.stringify([emptyVariant()]),
-  notes: '', sketch_data: '',
+  notes: '', sketch_data: '', logo: '',
 });

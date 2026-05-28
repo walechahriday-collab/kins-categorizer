@@ -4,7 +4,7 @@ import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import dynamicImport from 'next/dynamic';
 import {
   DEPARTMENTS, DEPT_CATEGORIES, SUB_CATEGORIES, COLORS,
-  DEPT_HEELS, DEPT_SECTIONS, DEPT_SIZES, SEASONS,
+  DEPT_HEELS, DEPT_SECTIONS, DEPT_SIZES, SEASONS, LOGO_OPTIONS,
   KIDS_SIZES, KIDS_SIZE_RANGES,
   ColorVariant, emptyVariant,
   ShoeEntry, emptyEntry,
@@ -39,6 +39,7 @@ const SHARED_COLS: ColDef[] = [
   { key: 'section',      label: 'Section',     type: 'dynamic-select', width: 110, isShared: true },
   { key: 'season',       label: 'Season',      type: 'select',         width: 95,  options: SEASONS, isShared: true },
   { key: 'pur_price',    label: 'Pur Price',   type: 'text',           width: 95,  isShared: true },
+  { key: 'logo',         label: 'Logo',        type: 'select',         width: 150, options: LOGO_OPTIONS, isShared: true },
 ];
 
 const VARIANT_ACCENT = [
@@ -726,7 +727,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
         <div className="px-5 pt-3 pb-4 flex-1 min-h-0 flex flex-col gap-2"
           style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-card)' }}>
 
-          {/* Tab bar */}
+          {/* Tab bar + Save button */}
           <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
             <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-mid)' }}>
               {(['text', 'sketch'] as const).map(m => (
@@ -775,6 +776,20 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
                 </div>
               </>
             )}
+
+            {/* Save button — beside tabs */}
+            <button onClick={handleSave} disabled={saving} className="btn ml-auto"
+              style={{ background: saved ? 'rgba(30,150,80,0.12)' : 'var(--red)',
+                color: saved ? 'rgb(30,150,80)' : '#fff',
+                border: saved ? '1px solid rgba(30,150,80,0.3)' : 'none',
+                padding: '10px 24px', fontSize: '0.7rem', letterSpacing: '0.12em',
+                minWidth: 140, justifyContent: 'center', cursor: saving ? 'not-allowed' : 'pointer' }}>
+              {saving
+                ? <><svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="60" strokeDashoffset="20"/></svg>SAVING…</>
+                : saved
+                ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>SAVED!</>
+                : isEdit ? 'UPDATE ENTRY' : 'SAVE ENTRY'}
+            </button>
           </div>
 
           {/* Content — fills all remaining space */}
@@ -800,8 +815,8 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
               onPointerUp={notesOnUp} onPointerLeave={notesOnUp} />
           </div>
 
-          {/* Save row */}
-          <div className="flex items-center justify-between gap-3 flex-shrink-0">
+          {/* Entry summary */}
+          <div className="flex-shrink-0">
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               {entry.category
                 ? <><span style={{ color: 'var(--red)', fontWeight: 700 }}>{entry.category}</span>
@@ -809,18 +824,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
                     {variants.length > 1 ? ` · ${variants.length} colors` : ''}</>
                 : <span>Fill in the fields above and save</span>}
             </p>
-            <button onClick={handleSave} disabled={saving} className="btn"
-              style={{ background: saved ? 'rgba(30,150,80,0.12)' : 'var(--red)',
-                color: saved ? 'rgb(30,150,80)' : '#fff',
-                border: saved ? '1px solid rgba(30,150,80,0.3)' : 'none',
-                padding: '10px 24px', fontSize: '0.7rem', letterSpacing: '0.12em',
-                minWidth: 140, justifyContent: 'center', cursor: saving ? 'not-allowed' : 'pointer' }}>
-              {saving
-                ? <><svg className="animate-spin" width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" strokeDasharray="60" strokeDashoffset="20"/></svg>SAVING…</>
-                : saved
-                ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5 9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>SAVED!</>
-                : isEdit ? 'UPDATE ENTRY' : 'SAVE ENTRY'}
-            </button>
           </div>
         </div>
       </div>

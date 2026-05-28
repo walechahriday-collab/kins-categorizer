@@ -5,10 +5,15 @@ const HEADERS = [
   'Picture', 'Department', 'Category', 'SubCategory', 'ArticleNo',
   'CodingType', 'UOMName', 'Description', 'ExtDescription',
   'Color', 'Size', 'Style', 'Brand', 'HSNCode', 'Supplier',
-  'ItemCode', 'PurPrice', 'ItemMrp', 'ItemVsp', 'Quantity',
-  'InvoiceNo', 'InvoiceOt', 'PORowId', 'PurOrderId',
-  'ATTR_Set_Qty', 'ATTR_Size_Set', 'ATTR_Season', 'ATTR_Saection',
+  'ItemCode', 'ItemId', 'PurPrice', 'ItemMrp', 'ItemWsp', 'Quantity',
+  'InvoiceNo', 'InvoiceDt', 'PORowId', 'PurOrderId',
+  'ATTR_Set_Qty', 'ATTR_Size_Set', 'ATTR_Season', 'Attr_Saction',
 ] as const;
+
+const SECTION_LABEL: Record<string, string> = {
+  'MB': 'Meena Bazar',
+  'SB': 'Shoe Bazar',
+};
 
 export function exportToExcelV2(entries: ShoeEntry[]) {
   const rows: Record<string, string>[] = [];
@@ -29,41 +34,52 @@ export function exportToExcelV2(entries: ShoeEntry[]) {
       variants = [v as ColorVariant];
     }
 
-    // Only include http URLs — skip base64 data URLs (too large for a cell)
     const pic = (e.picture || '').startsWith('http') ? e.picture : '';
+    const sectionLabel = SECTION_LABEL[e.section] ?? e.section ?? '';
 
     for (const v of variants) {
       const vMap = v as unknown as Record<string, string>;
-
       const sizesWithQty = sizes.filter(n => Number(vMap[`qty_${n}`] || 0) > 0);
 
-      const makeRow = (size: string, qty: string): Record<string, string> => {
+      const makeRow = (size: string): Record<string, string> => {
+        const articlePart = (e.article_no || '').toLowerCase();
+        const colorPart = (v.color || '').toLowerCase();
+        const sizePart = size.toLowerCase();
+        const itemCode = articlePart
+          ? `${articlePart}_${colorPart}_${sizePart}`
+          : `_${colorPart}_${sizePart}`;
+
         const row: Record<string, string> = {};
         for (const h of HEADERS) row[h] = '';
+
         row['Picture']       = pic;
         row['Department']    = e.department || '';
         row['Category']      = e.category || '';
         row['SubCategory']   = e.sub_category || '';
         row['ArticleNo']     = e.article_no || '';
+        row['CodingType']    = '1';
         row['Color']         = v.color || '';
         row['Size']          = size;
         row['Style']         = e.heels || '';
+        row['Brand']         = 'Ket';
+        row['ItemCode']      = itemCode;
+        row['ItemId']        = '';
         row['PurPrice']      = e.pur_price || '';
-        row['Quantity']      = qty;
+        row['Quantity']      = '';
         row['ATTR_Set_Qty']  = v.set_qty || '';
         row['ATTR_Size_Set'] = v.size_set || '';
         row['ATTR_Season']   = e.season || '';
-        row['ATTR_Saection'] = e.section || '';
+        row['Attr_Saction']  = sectionLabel;
+
         return row;
       };
 
       if (sizesWithQty.length > 0) {
         for (const n of sizesWithQty) {
-          rows.push(makeRow(String(n), vMap[`qty_${n}`] || ''));
+          rows.push(makeRow(String(n)));
         }
       } else {
-        // No individual size quantities — one row per variant
-        rows.push(makeRow(v.size_set || '', v.set_qty || ''));
+        rows.push(makeRow(v.size_set || ''));
       }
     }
   }
