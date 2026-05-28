@@ -84,6 +84,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
   const notesHistory = useRef<ImageData[]>([]);
   const notesCanvasSized = useRef(false);
   const pendingSketchData = useRef('');
+  const originalSketchRef = useRef('');
 
   const variantsRef = useRef(variants);
   useEffect(() => { variantsRef.current = variants; }, [variants]);
@@ -289,6 +290,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
       setNotesMode('text'); setNotesEraser(false);
       notesCanvasSized.current = false;
       notesHistory.current = [];
+      originalSketchRef.current = initialEntry?.sketch_data || '';
       pendingSketchData.current = initialEntry?.sketch_data || '';
       if (notesCanvasRef.current) {
         const ctx = notesCanvasRef.current.getContext('2d');
@@ -403,10 +405,17 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
     setSaving(true);
     try {
       let sketchData = '';
-      if (notesCanvasSized.current && notesCanvasRef.current && notesHistory.current.length > 0) {
-        sketchData = notesCanvasRef.current.toDataURL('image/png');
-      } else if (sketchRef.current) {
-        sketchData = await sketchRef.current.exportPaths();
+      if (notesCanvasSized.current && notesCanvasRef.current) {
+        if (notesHistory.current.length > 0) {
+          // User drew new strokes — export current canvas state
+          sketchData = notesCanvasRef.current.toDataURL('image/png');
+        } else {
+          // Canvas was opened to view but no new strokes — preserve original
+          sketchData = originalSketchRef.current;
+        }
+      } else {
+        // User never opened the sketch tab — preserve original sketch unchanged
+        sketchData = originalSketchRef.current;
       }
       const v0 = variants[0] || emptyVariant();
       const v0qty: Record<string, string> = {};
