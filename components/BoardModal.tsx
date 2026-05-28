@@ -74,8 +74,99 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
   const entryRef = useRef(entry);
   useEffect(() => { entryRef.current = entry; }, [entry]);
 
+  // Notes sketch state
+  const [notesMode, setNotesMode] = useState<'text' | 'sketch'>('text');
+  const [notesColor, setNotesColor] = useState('#c41515');
+  const [notesEraser, setNotesEraser] = useState(false);
+  const notesCanvasRef = useRef<HTMLCanvasElement>(null);
+  const notesDrawing = useRef(false);
+  const notesLast = useRef<{ x: number; y: number } | null>(null);
+  const notesHistory = useRef<ImageData[]>([]);
+  const notesCanvasSized = useRef(false);
+  const pendingSketchData = useRef('');
+
   const variantsRef = useRef(variants);
   useEffect(() => { variantsRef.current = variants; }, [variants]);
+
+  const initNotesCanvas = useCallback(() => {
+    const c = notesCanvasRef.current;
+    if (!c || notesCanvasSized.current) return;
+    const dpr = window.devicePixelRatio || 1;
+    const r = c.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return;
+    c.width = r.width * dpr;
+    c.height = r.height * dpr;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    ctx.scale(dpr, dpr);
+    notesCanvasSized.current = true;
+    if (pendingSketchData.current) {
+      const img = new Image();
+      const cssW = r.width, cssH = r.height;
+      img.onload = () => ctx.drawImage(img, 0, 0, cssW, cssH);
+      img.src = pendingSketchData.current;
+      pendingSketchData.current = '';
+    }
+  }, []);
+
+  useEffect(() => {
+    if (notesMode === 'sketch') setTimeout(initNotesCanvas, 50);
+  }, [notesMode, initNotesCanvas]);
+
+  const notesPos = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const r = notesCanvasRef.current!.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const notesOnDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    notesDrawing.current = true;
+    notesLast.current = notesPos(e);
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+  };
+  const notesOnMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!notesDrawing.current || !notesLast.current) return;
+    const c = notesCanvasRef.current!;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    const p = notesPos(e);
+    ctx.save();
+    if (notesEraser) {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.lineWidth = 18;
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = notesColor;
+      ctx.lineWidth = 3;
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(notesLast.current.x, notesLast.current.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.restore();
+    notesLast.current = p;
+  };
+  const notesOnUp = () => {
+    if (notesDrawing.current) {
+      const c = notesCanvasRef.current;
+      if (c) {
+        const ctx = c.getContext('2d');
+        if (ctx) notesHistory.current = [...notesHistory.current, ctx.getImageData(0, 0, c.width, c.height)];
+      }
+    }
+    notesDrawing.current = false;
+    notesLast.current = null;
+  };
+  const notesUndo = useCallback(() => {
+    const c = notesCanvasRef.current;
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+    const next = notesHistory.current.slice(0, -1);
+    notesHistory.current = next;
+    if (next.length > 0) ctx.putImageData(next[next.length - 1], 0, 0);
+    else ctx.clearRect(0, 0, c.width, c.height);
+  }, []);
 
   const sendToClaude = useCallback((transcript: string) => {
     const existingColors = variantsRef.current
@@ -195,6 +286,14 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
         setVariants([emptyVariant()]);
       }
       setSketchMode(false); setSaved(false);
+      setNotesMode('text'); setNotesEraser(false);
+      notesCanvasSized.current = false;
+      notesHistory.current = [];
+      pendingSketchData.current = initialEntry?.sketch_data || '';
+      if (notesCanvasRef.current) {
+        const ctx = notesCanvasRef.current.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, notesCanvasRef.current.width, notesCanvasRef.current.height);
+      }
     }
   }, [open, initialEntry]);
 
@@ -303,7 +402,12 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
   const handleSave = async () => {
     setSaving(true);
     try {
-      const sketchData = sketchRef.current ? await sketchRef.current.exportPaths() : '';
+      let sketchData = '';
+      if (notesCanvasSized.current && notesCanvasRef.current && notesHistory.current.length > 0) {
+        sketchData = notesCanvasRef.current.toDataURL('image/png');
+      } else if (sketchRef.current) {
+        sketchData = await sketchRef.current.exportPaths();
+      }
       const v0 = variants[0] || emptyVariant();
       const v0qty: Record<string, string> = {};
       for (let i = 15; i <= 47; i++) v0qty[`qty_${i}`] = (v0 as Record<string, string>)[`qty_${i}`] || '';
@@ -503,9 +607,9 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
         )}
 
         {/* Spreadsheet */}
-        <div className="flex-1 min-h-0 relative" style={{ overflow: 'hidden' }}>
+        <div className="flex-shrink-0 relative" style={{ overflow: 'hidden', maxHeight: '52vh' }}>
           <SketchCanvas ref={sketchRef} active={sketchMode} color={sketchColor} strokeWidth={3} />
-          <div className="h-full" style={{ overflowX: 'auto', overflowY: 'auto', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '52vh', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
             <table style={{ minWidth: totalWidth, tableLayout: 'fixed', borderCollapse: 'collapse' }}>
               <colgroup>
                 {allCols.map(col => <col key={col.key} style={{ width: col.width }} />)}
@@ -609,21 +713,86 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
           </div>
         </div>
 
-        {/* Notes + Save */}
-        <div className="px-5 pt-3 pb-5 flex-shrink-0 flex flex-col gap-3"
+        {/* Notes + Sketch + Save */}
+        <div className="px-5 pt-3 pb-4 flex-1 min-h-0 flex flex-col gap-2"
           style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-card)' }}>
-          <div>
-            <label className="block text-xs tracking-widest mb-1.5 font-semibold"
-              style={{ color: 'var(--text-mid)', letterSpacing: '0.15em' }}>NOTES</label>
-            <textarea value={entry.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Add notes about this item..." rows={2}
-              className="w-full px-3 py-2.5 rounded-lg outline-none transition-all resize-none"
-              style={{ background: 'var(--bg)', border: '1.5px solid var(--border-mid)',
-                color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: '0.75rem' }}
+
+          {/* Tab bar */}
+          <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+            <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid var(--border-mid)' }}>
+              {(['text', 'sketch'] as const).map(m => (
+                <button key={m} onClick={() => setNotesMode(m)}
+                  className="px-3 py-1.5 tracking-widest transition-all"
+                  style={{ fontSize: '0.6rem', fontWeight: 600,
+                    background: notesMode === m ? 'var(--red)' : '#fff',
+                    color: notesMode === m ? '#fff' : 'var(--text-mid)',
+                    borderRight: m === 'text' ? '1px solid var(--border-mid)' : 'none' }}>
+                  {m === 'text' ? 'NOTES' : 'SKETCH'}
+                </button>
+              ))}
+            </div>
+
+            {notesMode === 'sketch' && (
+              <>
+                <button onClick={notesUndo}
+                  className="flex items-center gap-1 rounded-lg transition-colors"
+                  style={{ padding: '5px 10px', fontSize: '0.6rem', fontWeight: 600,
+                    background: 'rgba(26,19,16,0.06)', color: 'var(--text-mid)',
+                    border: '1px solid var(--border-mid)' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 7v6h6M3 13C4.67 8.94 8.5 6 13 6c5.52 0 10 4.48 10 10s-4.48 10-10 10a10 10 0 0 1-9.95-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  UNDO
+                </button>
+                <button onClick={() => setNotesEraser(p => !p)}
+                  className="flex items-center gap-1 rounded-lg transition-colors"
+                  style={{ padding: '5px 10px', fontSize: '0.6rem', fontWeight: 600,
+                    background: notesEraser ? 'var(--text-mid)' : 'rgba(26,19,16,0.06)',
+                    color: notesEraser ? '#fff' : 'var(--text-mid)',
+                    border: '1px solid var(--border-mid)' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                    <path d="M20 20H7L3 16l10-10 7 7-1.5 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="m6.5 17.5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                  ERASER
+                </button>
+                <div className="flex gap-1.5 items-center">
+                  {(['#c41515','#1a6ac4','#1a8a3c','#1a1310'] as const).map(c => (
+                    <button key={c} onClick={() => { setNotesColor(c); setNotesEraser(false); }}
+                      className="rounded-full transition-transform hover:scale-110"
+                      style={{ width: 18, height: 18, background: c, flexShrink: 0,
+                        border: notesColor === c && !notesEraser ? '2.5px solid var(--text)' : '2px solid transparent' }} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Content — fills all remaining space */}
+          <div className="flex-1 min-h-0 relative">
+            <textarea
+              value={entry.notes} onChange={e => set('notes', e.target.value)}
+              placeholder="Add notes about this item..."
+              className="w-full h-full px-3 py-2.5 rounded-lg outline-none resize-none"
+              style={{ display: notesMode === 'text' ? 'block' : 'none',
+                background: 'var(--bg)', border: '1.5px solid var(--border-mid)',
+                color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: '0.75rem',
+                boxSizing: 'border-box' }}
               onFocus={e => { e.target.style.borderColor = 'var(--red)'; }}
               onBlur={e => { e.target.style.borderColor = 'var(--border-mid)'; }} />
+            <canvas ref={notesCanvasRef}
+              style={{ display: notesMode === 'sketch' ? 'block' : 'none',
+                width: '100%', height: '100%',
+                cursor: notesEraser ? 'cell' : 'crosshair',
+                touchAction: 'none',
+                background: 'white', borderRadius: 8,
+                border: '1.5px solid var(--border-mid)', boxSizing: 'border-box' }}
+              onPointerDown={notesOnDown} onPointerMove={notesOnMove}
+              onPointerUp={notesOnUp} onPointerLeave={notesOnUp} />
           </div>
-          <div className="flex items-center justify-between gap-3">
+
+          {/* Save row */}
+          <div className="flex items-center justify-between gap-3 flex-shrink-0">
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               {entry.category
                 ? <><span style={{ color: 'var(--red)', fontWeight: 700 }}>{entry.category}</span>
