@@ -44,7 +44,7 @@ export default function EntriesList({ entries, loading, onEntryClick, onDelete }
   return (
     <div className="flex flex-col gap-3">
       {entries.map((entry) => {
-        const title = entry.category || entry.department || '—';
+        const title = entry.article_no || entry.category || entry.department || '—';
         const picture = entry.picture || (entry as unknown as Record<string, string>).photo_url || '';
 
         // Collect colors from variants
