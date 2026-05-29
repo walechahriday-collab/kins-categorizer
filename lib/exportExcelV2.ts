@@ -98,9 +98,10 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
     }
   }
 
-  // Format InvoiceDt column as date
-  const invoiceDtCol = HEADERS.indexOf('InvoiceDt') + 1;
-  sheet.getColumn(invoiceDtCol).numFmt = 'dd/mm/yyyy';
+  // Format columns
+  sheet.getColumn(HEADERS.indexOf('InvoiceDt') + 1).numFmt = 'dd/mm/yyyy';
+  sheet.getColumn(HEADERS.indexOf('ItemMrp') + 1).numFmt = '0.00';
+  sheet.getColumn(HEADERS.indexOf('ItemWsp') + 1).numFmt = '0.00';
 
   // Auto-width columns
   sheet.columns.forEach((col, i) => {
