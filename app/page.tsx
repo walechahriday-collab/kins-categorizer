@@ -8,7 +8,6 @@ import EntriesList from '@/components/EntriesList';
 import PinGate from '@/components/PinGate';
 import { ShoeEntry } from '@/lib/categories';
 import { fetchEntries, deleteEntry, clearAllEntries } from '@/lib/storage';
-import { exportToExcel } from '@/lib/exportExcel';
 import { exportToExcelV2 } from '@/lib/exportExcelV2';
 
 export default function Home() {
@@ -172,28 +171,12 @@ export default function Home() {
           </h2>
 
           <div className="flex items-center gap-2">
-            {/* Export to Excel (original) */}
-            {entries.length > 0 && (
-              <button
-                onClick={() => exportToExcel(entries)}
-                className="btn btn-outline"
-                style={{ padding: '6px 12px', color: '#1d6f42', borderColor: 'rgba(29,111,66,0.35)' }}
-                title="Download all entries as Excel file"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                  <path d="M14 2v6h6M8 13h2l2 4 2-4h2M8 17h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                EXPORT EXCEL
-              </button>
-            )}
-
-            {/* Export to Excel V2 (ERP format — one row per size) */}
+            {/* ERP format export */}
             {entries.length > 0 && (
               <button
                 onClick={() => exportToExcelV2(entries).catch(console.error)}
                 className="btn btn-outline"
-                style={{ padding: '6px 12px', color: '#1d6f42', borderColor: 'rgba(29,111,66,0.35)', opacity: 0.75 }}
+                style={{ padding: '6px 12px', color: '#1d6f42', borderColor: 'rgba(29,111,66,0.35)' }}
                 title="Download in ERP format (one row per size)"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none">

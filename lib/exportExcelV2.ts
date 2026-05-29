@@ -8,7 +8,7 @@ const HEADERS = [
   'Color', 'Size', 'Style', 'Brand', 'HSNCode', 'Supplier',
   'ItemCode', 'ItemId', 'PurPrice', 'ItemMrp', 'ItemWsp', 'Quantity',
   'InvoiceNo', 'InvoiceDt', 'PORowId', 'PurOrderId',
-  'ATTR_Set_Qty', 'ATTR_Size_Set', 'ATTR_Season', 'Attr_Saction',
+  'ATTR_Set_Qty', 'ATTR_Size_Set', 'ATTR_Season', 'ATTR_Saction',
 ] as const;
 
 const SECTION_LABEL: Record<string, string> = {
@@ -20,13 +20,10 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Kins Footwear');
 
-  // Add header row with bold styling
+  // Header row — bold
   const headerRow = sheet.addRow([...HEADERS]);
-  headerRow.eachCell(cell => {
-    cell.font = { bold: true };
-  });
+  headerRow.eachCell(cell => { cell.font = { bold: true }; });
 
-  // Build data rows
   for (const e of entries) {
     const sizes = DEPT_SIZES[e.department] ?? [];
 
@@ -45,18 +42,18 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
 
     const pic = (e.picture || '').startsWith('http') ? e.picture : '';
     const sectionLabel = SECTION_LABEL[e.section] ?? e.section ?? '';
+    const entryDate = e.created_at ? new Date(e.created_at) : new Date();
 
     for (const v of variants) {
       const vMap = v as unknown as Record<string, string>;
       const sizesWithQty = sizes.filter(n => Number(vMap[`qty_${n}`] || 0) > 0);
 
-      const makeRow = (size: string): (string | number)[] => {
+      const makeRow = (size: string): (string | number | Date)[] => {
         const articlePart = (e.article_no || '').toUpperCase();
         const colorPart = (v.color || '').toUpperCase();
-        const sizePart = size;
         const itemCode = articlePart
-          ? `${articlePart}_${colorPart}_${sizePart}`
-          : `_${colorPart}_${sizePart}`;
+          ? `${articlePart}_${colorPart}_${size}`
+          : `_${colorPart}_${size}`;
 
         const toNum = (val: string) => { const n = Number(val); return val !== '' && !isNaN(n) ? n : (val || ''); };
 
@@ -68,17 +65,22 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
             case 'SubCategory':   return e.sub_category || '';
             case 'ArticleNo':     return e.article_no || '';
             case 'CodingType':    return 1;
+            case 'UOMName':       return 'PRS';
             case 'Color':         return v.color || '';
             case 'Size':          return toNum(size);
             case 'Style':         return e.heels || '';
             case 'Brand':         return 'Ket';
             case 'ItemCode':      return itemCode;
             case 'PurPrice':      return toNum(e.pur_price || '');
+            case 'ItemMrp':       return 1.00;
+            case 'ItemWsp':       return 0.00;
             case 'Quantity':      return '';
+            case 'InvoiceNo':     return '001';
+            case 'InvoiceDt':     return entryDate;
             case 'ATTR_Set_Qty':  return toNum(v.set_qty || '');
             case 'ATTR_Size_Set': return v.size_set || '';
             case 'ATTR_Season':   return e.season || '';
-            case 'Attr_Saction':  return sectionLabel;
+            case 'ATTR_Saction':  return sectionLabel;
             default:              return '';
           }
         });
@@ -92,7 +94,11 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
     }
   }
 
-  // Auto-width columns (approximate)
+  // Format InvoiceDt column as date
+  const invoiceDtCol = HEADERS.indexOf('InvoiceDt') + 1;
+  sheet.getColumn(invoiceDtCol).numFmt = 'dd/mm/yyyy';
+
+  // Auto-width columns
   sheet.columns.forEach((col, i) => {
     col.width = Math.max(HEADERS[i]?.length ?? 10, 12);
   });
