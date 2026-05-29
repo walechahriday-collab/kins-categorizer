@@ -58,6 +58,8 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
           ? `${articlePart}_${colorPart}_${sizePart}`
           : `_${colorPart}_${sizePart}`;
 
+        const toNum = (val: string) => { const n = Number(val); return val !== '' && !isNaN(n) ? n : (val || ''); };
+
         return HEADERS.map(h => {
           switch (h) {
             case 'Picture':       return pic;
@@ -65,15 +67,15 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
             case 'Category':      return e.category || '';
             case 'SubCategory':   return e.sub_category || '';
             case 'ArticleNo':     return e.article_no || '';
-            case 'CodingType':    return '1';
+            case 'CodingType':    return 1;
             case 'Color':         return v.color || '';
-            case 'Size':          return size;
+            case 'Size':          return toNum(size);
             case 'Style':         return e.heels || '';
             case 'Brand':         return 'Ket';
             case 'ItemCode':      return itemCode;
-            case 'PurPrice':      return e.pur_price || '';
+            case 'PurPrice':      return toNum(e.pur_price || '');
             case 'Quantity':      return '';
-            case 'ATTR_Set_Qty':  return v.set_qty || '';
+            case 'ATTR_Set_Qty':  return toNum(v.set_qty || '');
             case 'ATTR_Size_Set': return v.size_set || '';
             case 'ATTR_Season':   return e.season || '';
             case 'Attr_Saction':  return sectionLabel;
