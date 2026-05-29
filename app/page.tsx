@@ -191,7 +191,7 @@ export default function Home() {
             {/* Export to Excel V2 (ERP format — one row per size) */}
             {entries.length > 0 && (
               <button
-                onClick={() => exportToExcelV2(entries)}
+                onClick={() => exportToExcelV2(entries).catch(console.error)}
                 className="btn btn-outline"
                 style={{ padding: '6px 12px', color: '#1d6f42', borderColor: 'rgba(29,111,66,0.35)', opacity: 0.75 }}
                 title="Download in ERP format (one row per size)"

@@ -1,4 +1,5 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 import { ShoeEntry, ColorVariant, DEPT_SIZES } from './categories';
 
 const HEADERS = [
@@ -15,9 +16,17 @@ const SECTION_LABEL: Record<string, string> = {
   'SB': 'Shoe Bazar',
 };
 
-export function exportToExcelV2(entries: ShoeEntry[]) {
-  const rows: Record<string, string>[] = [];
+export async function exportToExcelV2(entries: ShoeEntry[]) {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Kins Footwear');
 
+  // Add header row with bold styling
+  const headerRow = sheet.addRow([...HEADERS]);
+  headerRow.eachCell(cell => {
+    cell.font = { bold: true };
+  });
+
+  // Build data rows
   for (const e of entries) {
     const sizes = DEPT_SIZES[e.department] ?? [];
 
@@ -41,53 +50,53 @@ export function exportToExcelV2(entries: ShoeEntry[]) {
       const vMap = v as unknown as Record<string, string>;
       const sizesWithQty = sizes.filter(n => Number(vMap[`qty_${n}`] || 0) > 0);
 
-      const makeRow = (size: string): Record<string, string> => {
-        const articlePart = (e.article_no || '').toLowerCase();
-        const colorPart = (v.color || '').toLowerCase();
-        const sizePart = size.toLowerCase();
+      const makeRow = (size: string): (string | number)[] => {
+        const articlePart = (e.article_no || '').toUpperCase();
+        const colorPart = (v.color || '').toUpperCase();
+        const sizePart = size;
         const itemCode = articlePart
           ? `${articlePart}_${colorPart}_${sizePart}`
           : `_${colorPart}_${sizePart}`;
 
-        const row: Record<string, string> = {};
-        for (const h of HEADERS) row[h] = '';
-
-        row['Picture']       = pic;
-        row['Department']    = e.department || '';
-        row['Category']      = e.category || '';
-        row['SubCategory']   = e.sub_category || '';
-        row['ArticleNo']     = e.article_no || '';
-        row['CodingType']    = '1';
-        row['Color']         = v.color || '';
-        row['Size']          = size;
-        row['Style']         = e.heels || '';
-        row['Brand']         = 'Ket';
-        row['ItemCode']      = itemCode;
-        row['ItemId']        = '';
-        row['PurPrice']      = e.pur_price || '';
-        row['Quantity']      = '';
-        row['ATTR_Set_Qty']  = v.set_qty || '';
-        row['ATTR_Size_Set'] = v.size_set || '';
-        row['ATTR_Season']   = e.season || '';
-        row['Attr_Saction']  = sectionLabel;
-
-        return row;
+        return HEADERS.map(h => {
+          switch (h) {
+            case 'Picture':       return pic;
+            case 'Department':    return e.department || '';
+            case 'Category':      return e.category || '';
+            case 'SubCategory':   return e.sub_category || '';
+            case 'ArticleNo':     return e.article_no || '';
+            case 'CodingType':    return '1';
+            case 'Color':         return v.color || '';
+            case 'Size':          return size;
+            case 'Style':         return e.heels || '';
+            case 'Brand':         return 'Ket';
+            case 'ItemCode':      return itemCode;
+            case 'PurPrice':      return e.pur_price || '';
+            case 'Quantity':      return '';
+            case 'ATTR_Set_Qty':  return v.set_qty || '';
+            case 'ATTR_Size_Set': return v.size_set || '';
+            case 'ATTR_Season':   return e.season || '';
+            case 'Attr_Saction':  return sectionLabel;
+            default:              return '';
+          }
+        });
       };
 
       if (sizesWithQty.length > 0) {
-        for (const n of sizesWithQty) {
-          rows.push(makeRow(String(n)));
-        }
+        for (const n of sizesWithQty) sheet.addRow(makeRow(String(n)));
       } else {
-        rows.push(makeRow(v.size_set || ''));
+        sheet.addRow(makeRow(v.size_set || ''));
       }
     }
   }
 
-  const ws = XLSX.utils.json_to_sheet(rows, { header: [...HEADERS] });
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Kins Footwear');
+  // Auto-width columns (approximate)
+  sheet.columns.forEach((col, i) => {
+    col.width = Math.max(HEADERS[i]?.length ?? 10, 12);
+  });
 
+  const buffer = await workbook.xlsx.writeBuffer();
   const today = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `Kins_Footwear_ERP_${today}.xlsx`);
+  saveAs(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `Kins_Footwear_ERP_${today}.xlsx`);
 }
