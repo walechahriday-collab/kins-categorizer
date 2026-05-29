@@ -45,7 +45,10 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
 
     const pic = (e.picture || '').startsWith('http') ? e.picture : '';
     const sectionLabel = SECTION_LABEL[e.section] ?? e.section ?? '';
-    const entryDate = e.created_at ? new Date(e.created_at) : new Date();
+    // Convert UTC timestamp to IST (UTC+5:30) date string, then back to Date
+    const rawDate = e.created_at ? new Date(e.created_at) : new Date();
+    const istOffset = 5.5 * 60 * 60000;
+    const entryDate = new Date(rawDate.getTime() + istOffset);
 
     for (const v of variants) {
       const vMap = v as unknown as Record<string, string>;
