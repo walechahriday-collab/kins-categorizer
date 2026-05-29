@@ -24,6 +24,10 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
   const headerRow = sheet.addRow([...HEADERS]);
   headerRow.eachCell(cell => { cell.font = { bold: true }; });
 
+  // Force InvoiceNo column to text so "001" is preserved
+  const invoiceNoColIdx = HEADERS.indexOf('InvoiceNo') + 1;
+  sheet.getColumn(invoiceNoColIdx).numFmt = '@';
+
   for (const e of entries) {
     const sizes = DEPT_SIZES[e.department] ?? [];
 
@@ -75,7 +79,7 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
             case 'ItemMrp':       return 1.00;
             case 'ItemWsp':       return 0.00;
             case 'Quantity':      return '';
-            case 'InvoiceNo':     return 1;
+            case 'InvoiceNo':     return '001';
             case 'InvoiceDt':     return entryDate;
             case 'ATTR_Set_Qty':  return toNum(v.set_qty || '');
             case 'ATTR_Size_Set': return toNum(v.size_set || '');
