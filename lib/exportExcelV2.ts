@@ -75,10 +75,10 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
             case 'ItemMrp':       return 1.00;
             case 'ItemWsp':       return 0.00;
             case 'Quantity':      return '';
-            case 'InvoiceNo':     return '001';
+            case 'InvoiceNo':     return 1;
             case 'InvoiceDt':     return entryDate;
             case 'ATTR_Set_Qty':  return toNum(v.set_qty || '');
-            case 'ATTR_Size_Set': return v.size_set || '';
+            case 'ATTR_Size_Set': return toNum(v.size_set || '');
             case 'ATTR_Season':   return e.season || '';
             case 'ATTR_Saction':  return sectionLabel;
             default:              return '';
