@@ -56,6 +56,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
   const [saved, setSaved] = useState(false);
   const sketchRef = useRef<SketchHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const comboPrevValueRef = useRef<Record<string, string>>({});
 
   // Voice memo (saved with entry)
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
@@ -471,6 +472,19 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
             list={listId}
             value={val}
             onChange={e => set(col.key, e.target.value)}
+            onFocus={e => {
+              // Clear on focus so the datalist shows every option instead of
+              // being filtered down to just the value already typed in.
+              comboPrevValueRef.current[col.key] = val;
+              if (val) set(col.key, '');
+              e.target.select();
+            }}
+            onBlur={() => {
+              const current = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
+              if (!current.trim() && comboPrevValueRef.current[col.key]) {
+                set(col.key, comboPrevValueRef.current[col.key]);
+              }
+            }}
             disabled={sketchMode || isLocked}
             placeholder={isLocked ? '— pick dept —' : '[None]'}
             style={{ ...baseInput, opacity: isLocked ? 0.4 : 1 }}
