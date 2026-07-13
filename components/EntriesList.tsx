@@ -13,9 +13,10 @@ interface Props {
   selectMode?: boolean;
   selectedIds?: Set<string>;
   onToggleSelect?: (id: string) => void;
+  onToggleSelectGroup?: (ids: string[]) => void;
 }
 
-export default function EntriesList({ entries, loading, onEntryClick, onDelete, onEntryUpdate, selectMode, selectedIds, onToggleSelect }: Props) {
+export default function EntriesList({ entries, loading, onEntryClick, onDelete, onEntryUpdate, selectMode, selectedIds, onToggleSelect, onToggleSelectGroup }: Props) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -221,7 +222,11 @@ export default function EntriesList({ entries, loading, onEntryClick, onDelete, 
 
   return (
     <div className="flex flex-col gap-5">
-      {Array.from(grouped.entries()).map(([supplier, supplierEntries]) => (
+      {Array.from(grouped.entries()).map(([supplier, supplierEntries]) => {
+        const groupIds = supplierEntries.map(e => e.id).filter((id): id is string => !!id);
+        const allSelected = selectMode && groupIds.length > 0 && groupIds.every(id => selectedIds?.has(id));
+
+        return (
         <div key={supplier}>
           {/* Supplier header */}
           <div className="flex items-center gap-3 mb-2">
@@ -240,6 +245,25 @@ export default function EntriesList({ entries, loading, onEntryClick, onDelete, 
                 {supplierEntries.length}
               </span>
             </div>
+            {selectMode && groupIds.length > 0 && (
+              <button
+                onClick={() => onToggleSelectGroup?.(groupIds)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-colors"
+                style={{
+                  background: allSelected ? 'var(--red)' : 'white',
+                  color: allSelected ? '#fff' : 'var(--red)',
+                  border: `1px solid ${allSelected ? 'var(--red)' : 'rgba(196,21,21,0.3)'}`,
+                  fontSize: '0.58rem', fontWeight: 700, letterSpacing: '0.06em', cursor: 'pointer',
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                  {allSelected
+                    ? <path d="M5 12l5 5 9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    : <rect x="4" y="4" width="16" height="16" rx="3" stroke="currentColor" strokeWidth="2"/>}
+                </svg>
+                {allSelected ? 'DESELECT ALL' : 'SELECT ALL'}
+              </button>
+            )}
             <div style={{ flex: 1, height: 1, background: 'var(--border-mid)' }} />
           </div>
 
@@ -247,7 +271,8 @@ export default function EntriesList({ entries, loading, onEntryClick, onDelete, 
             {supplierEntries.map(renderCard)}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

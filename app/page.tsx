@@ -105,6 +105,16 @@ export default function Home() {
     });
   };
 
+  const handleToggleSelectGroup = (ids: string[]) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      const allSelected = ids.every(id => next.has(id));
+      if (allSelected) ids.forEach(id => next.delete(id));
+      else ids.forEach(id => next.add(id));
+      return next;
+    });
+  };
+
   const handleToggleSelectMode = () => {
     setSelectMode(prev => !prev);
     setSelectedIds(new Set());
@@ -459,6 +469,7 @@ export default function Home() {
           selectMode={selectMode}
           selectedIds={selectedIds}
           onToggleSelect={handleToggleSelect}
+          onToggleSelectGroup={handleToggleSelectGroup}
         />
 
         {/* ── Trash Section ── */}
