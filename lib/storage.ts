@@ -1,9 +1,31 @@
 import { supabase } from './supabase';
-import { ShoeEntry } from './categories';
+import { ShoeEntry, OrderPlan } from './categories';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_CONFIGURED =
   !!SUPABASE_URL && SUPABASE_URL !== 'https://placeholder.supabase.co';
+
+async function compressImage(file: File, maxDim = 1200, quality = 0.82): Promise<Blob> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    let { width, height } = bitmap;
+    if (width > maxDim || height > maxDim) {
+      const scale = maxDim / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+    return blob ?? file;
+  } catch {
+    return file;
+  }
+}
 
 export async function uploadPhoto(file: File): Promise<string> {
   if (!SUPABASE_CONFIGURED) {
@@ -13,12 +35,40 @@ export async function uploadPhoto(file: File): Promise<string> {
       reader.readAsDataURL(file);
     });
   }
-  const ext = file.name.split('.').pop() ?? 'jpg';
+  const compressed = await compressImage(file);
+  const ext = compressed.type.includes('png') ? 'png' : compressed.type.includes('webp') ? 'webp' : 'jpg';
   const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const { data, error } = await supabase.storage.from('photos').upload(path, file);
+  const { data, error } = await supabase.storage.from('photos').upload(path, compressed, {
+    contentType: compressed.type || 'image/jpeg',
+  });
   if (error) throw error;
   const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(data.path);
   return publicUrl;
+}
+
+export async function uploadVoiceNote(blob: Blob, entryId: string): Promise<string> {
+  if (!SUPABASE_CONFIGURED) throw new Error('Supabase not configured');
+  const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+  const path = `voice/${entryId}-${Date.now()}.${ext}`;
+  const { data, error } = await supabase.storage.from('photos').upload(path, blob, {
+    contentType: blob.type,
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(data.path);
+  return publicUrl;
+}
+
+export async function saveVoiceNoteUrl(entryId: string, url: string): Promise<void> {
+  if (!SUPABASE_CONFIGURED) return;
+  await supabase.from('shoe_categorizations').update({ voice_note_url: url }).eq('id', entryId);
+}
+
+export async function removeVoiceNote(entryId: string, url: string): Promise<void> {
+  if (!SUPABASE_CONFIGURED) return;
+  const path = photoPathFromUrl(url);
+  if (path) await supabase.storage.from('photos').remove([path]);
+  await supabase.from('shoe_categorizations').update({ voice_note_url: '' }).eq('id', entryId);
 }
 
 function migrateEntry(e: Record<string, string>): ShoeEntry {
@@ -27,7 +77,6 @@ function migrateEntry(e: Record<string, string>): ShoeEntry {
     qtyFields[`qty_${i}`] = e[`qty_${i}`] || '';
   }
 
-  // Build color_variants from flat fields if not present
   let color_variants = e.color_variants || '';
   if (!color_variants) {
     const v: Record<string, string> = {
@@ -42,6 +91,7 @@ function migrateEntry(e: Record<string, string>): ShoeEntry {
   return {
     id: e.id,
     created_at: e.created_at,
+    voice_note_url: e.voice_note_url || '',
     picture: e.picture || '',
     department: e.department || '',
     category: e.category || '',
@@ -60,6 +110,7 @@ function migrateEntry(e: Record<string, string>): ShoeEntry {
     notes: e.notes || '',
     sketch_data: e.sketch_data || '',
     logo: e.logo || '',
+    supplier_name: e.supplier_name || '',
   } as ShoeEntry;
 }
 
@@ -81,7 +132,7 @@ function writeLocal(entries: ShoeEntry[]) {
   }
 }
 
-export async function saveEntry(entry: Omit<ShoeEntry, 'id' | 'created_at'>): Promise<void> {
+export async function saveEntry(entry: Omit<ShoeEntry, 'id' | 'created_at' | 'deleted_at'>): Promise<void> {
   if (SUPABASE_CONFIGURED) {
     const { error } = await supabase.from('shoe_categorizations').insert(entry);
     if (error) throw error;
@@ -101,24 +152,100 @@ export async function fetchEntries(): Promise<ShoeEntry[]> {
     const { data } = await supabase
       .from('shoe_categorizations')
       .select('*')
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
     return (data as ShoeEntry[]) ?? [];
   }
   return localEntries();
 }
 
+export async function fetchTrashedEntries(): Promise<ShoeEntry[]> {
+  if (!SUPABASE_CONFIGURED) return [];
+  const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from('shoe_categorizations')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .gte('deleted_at', fifteenDaysAgo)
+    .order('deleted_at', { ascending: false });
+  return (data as ShoeEntry[]) ?? [];
+}
+
+export async function restoreEntry(id: string): Promise<void> {
+  if (!SUPABASE_CONFIGURED) return;
+  await supabase.from('shoe_categorizations').update({ deleted_at: null }).eq('id', id);
+}
+
+function photoPathFromUrl(url: string): string | null {
+  const marker = '/object/public/photos/';
+  const idx = url.indexOf(marker);
+  return idx !== -1 ? url.slice(idx + marker.length) : null;
+}
+
 export async function deleteEntry(id: string): Promise<void> {
   if (SUPABASE_CONFIGURED) {
-    const { error } = await supabase.from('shoe_categorizations').delete().eq('id', id);
+    // Soft delete — moves to trash for 15 days
+    const { error } = await supabase
+      .from('shoe_categorizations')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
     if (error) throw error;
     return;
   }
   writeLocal(localEntries().filter((e) => e.id !== id));
 }
 
+export async function permanentlyDeleteEntry(id: string): Promise<void> {
+  if (!SUPABASE_CONFIGURED) return;
+  const { data } = await supabase
+    .from('shoe_categorizations')
+    .select('picture, voice_note_url')
+    .eq('id', id)
+    .single();
+  const { error } = await supabase.from('shoe_categorizations').delete().eq('id', id);
+  if (error) throw error;
+  if (data?.picture) {
+    const path = photoPathFromUrl(data.picture);
+    if (path) await supabase.storage.from('photos').remove([path]);
+  }
+  if (data?.voice_note_url) {
+    const path = photoPathFromUrl(data.voice_note_url);
+    if (path) await supabase.storage.from('photos').remove([path]);
+  }
+}
+
+export async function purgeOldTrash(): Promise<void> {
+  if (!SUPABASE_CONFIGURED) return;
+  const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from('shoe_categorizations')
+    .select('id, picture, voice_note_url')
+    .not('deleted_at', 'is', null)
+    .lt('deleted_at', fifteenDaysAgo);
+
+  if (!data || data.length === 0) return;
+
+  const photoPaths = data
+    .map((e: { picture: string }) => e.picture ? photoPathFromUrl(e.picture) : null)
+    .filter((p): p is string => !!p);
+  const voicePaths = data
+    .map((e: { voice_note_url: string }) => e.voice_note_url ? photoPathFromUrl(e.voice_note_url) : null)
+    .filter((p): p is string => !!p);
+
+  if (photoPaths.length) await supabase.storage.from('photos').remove(photoPaths);
+  if (voicePaths.length) await supabase.storage.from('photos').remove(voicePaths);
+
+  const ids = data.map((e: { id: string }) => e.id);
+  await supabase.from('shoe_categorizations').delete().in('id', ids);
+}
+
 export async function clearAllEntries(): Promise<void> {
   if (SUPABASE_CONFIGURED) {
-    const { error } = await supabase.from('shoe_categorizations').delete().not('id', 'is', null);
+    // Soft-delete all active entries so they go to trash for 15 days
+    const { error } = await supabase
+      .from('shoe_categorizations')
+      .update({ deleted_at: new Date().toISOString() })
+      .is('deleted_at', null);
     if (error) throw error;
     return;
   }
@@ -127,7 +254,7 @@ export async function clearAllEntries(): Promise<void> {
 
 export async function updateEntry(
   id: string,
-  entry: Omit<ShoeEntry, 'id' | 'created_at'>
+  entry: Omit<ShoeEntry, 'id' | 'created_at' | 'deleted_at'>
 ): Promise<void> {
   if (SUPABASE_CONFIGURED) {
     await supabase.from('shoe_categorizations').update(entry).eq('id', id);
@@ -137,4 +264,52 @@ export async function updateEntry(
     e.id === id ? { ...e, ...entry } : e
   );
   writeLocal(all);
+}
+
+// ─── Order planning ───────────────────────────────────────────────────────────
+
+export type OrderProgress = { department: string; category: string; ordered_qty: number };
+export type DeptSubcategoryTotal = { department: string; sub_category: string; ordered_qty: number };
+
+export async function fetchOrderPlans(): Promise<OrderPlan[]> {
+  if (!SUPABASE_CONFIGURED) return [];
+  const { data } = await supabase.from('order_plans').select('*');
+  return (data as OrderPlan[]) ?? [];
+}
+
+export async function fetchOrderProgress(): Promise<OrderProgress[]> {
+  if (!SUPABASE_CONFIGURED) return [];
+  const { data } = await supabase.rpc('get_order_progress');
+  return (data as OrderProgress[]) ?? [];
+}
+
+export async function fetchDeptSubcategoryTotals(): Promise<DeptSubcategoryTotal[]> {
+  if (!SUPABASE_CONFIGURED) return [];
+  const { data } = await supabase.rpc('get_department_subcategory_totals');
+  return (data as DeptSubcategoryTotal[]) ?? [];
+}
+
+export async function upsertPlannedQty(department: string, category: string, plannedQty: number): Promise<void> {
+  if (!SUPABASE_CONFIGURED) return;
+  await supabase
+    .from('order_plans')
+    .upsert({ department, category, planned_qty: plannedQty }, { onConflict: 'department,category' });
+}
+
+export async function resetOrderPlan(department: string, category: string): Promise<void> {
+  if (!SUPABASE_CONFIGURED) return;
+  await supabase
+    .from('order_plans')
+    .upsert(
+      { department, category, period_start: new Date().toISOString() },
+      { onConflict: 'department,category', ignoreDuplicates: false }
+    );
+}
+
+export async function resetAllOrderPlans(): Promise<void> {
+  if (!SUPABASE_CONFIGURED) return;
+  await supabase
+    .from('order_plans')
+    .update({ period_start: new Date().toISOString() })
+    .not('id', 'is', null);
 }

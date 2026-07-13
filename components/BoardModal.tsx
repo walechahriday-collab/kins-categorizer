@@ -5,41 +5,35 @@ import dynamicImport from 'next/dynamic';
 import {
   DEPARTMENTS, DEPT_CATEGORIES, SUB_CATEGORIES, COLORS,
   DEPT_HEELS, DEPT_SECTIONS, DEPT_SIZES, SEASONS, LOGO_OPTIONS,
-  KIDS_SIZES, KIDS_SIZE_RANGES,
+  KIDS_SIZES, KIDS_SIZE_RANGES, SUPPLIER_NAMES, SUPPLIER_CODES,
   ColorVariant, emptyVariant,
   ShoeEntry, emptyEntry,
 } from '@/lib/categories';
-import { saveEntry, updateEntry, uploadPhoto } from '@/lib/storage';
+import { saveEntry, updateEntry, uploadPhoto, uploadVoiceNote } from '@/lib/storage';
+import LabeledPhoto from './LabeledPhoto';
 import type { SketchHandle } from './SketchCanvas';
-
-type SR = {
-  continuous: boolean; interimResults: boolean; lang: string;
-  onresult: ((e: SREvent) => void) | null;
-  onend: (() => void) | null; onerror: (() => void) | null;
-  start: () => void; stop: () => void;
-};
-type SREvent = { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] };
 
 const SketchCanvas = dynamicImport(() => import('./SketchCanvas'), { ssr: false });
 
 interface ColDef {
   key: string; label: string; width: number;
-  type: 'photo' | 'select' | 'dynamic-select' | 'text' | 'calc' | 'variant-select' | 'variant-text' | 'variant-calc';
+  type: 'photo' | 'select' | 'dynamic-select' | 'combobox' | 'text' | 'calc' | 'variant-select' | 'variant-text' | 'variant-calc';
   options?: readonly string[];
   isShared?: boolean;
 }
 
 const SHARED_COLS: ColDef[] = [
   { key: 'picture',      label: 'Picture',     type: 'photo',          width: 100, isShared: true },
-  { key: 'department',   label: 'Department',  type: 'select',         width: 155, options: DEPARTMENTS, isShared: true },
-  { key: 'category',     label: 'Category',    type: 'dynamic-select', width: 155, isShared: true },
-  { key: 'sub_category', label: 'SubCategory', type: 'select',         width: 125, options: SUB_CATEGORIES, isShared: true },
-  { key: 'article_no',   label: 'ArticleNo',   type: 'text',           width: 115, isShared: true },
-  { key: 'heels',        label: 'Heels',       type: 'dynamic-select', width: 140, isShared: true },
-  { key: 'section',      label: 'Section',     type: 'dynamic-select', width: 110, isShared: true },
-  { key: 'season',       label: 'Season',      type: 'select',         width: 95,  options: SEASONS, isShared: true },
-  { key: 'pur_price',    label: 'Pur Price',   type: 'text',           width: 95,  isShared: true },
-  { key: 'logo',         label: 'Logo',        type: 'select',         width: 150, options: LOGO_OPTIONS, isShared: true },
+  { key: 'department',    label: 'Department',     type: 'select',   width: 155, options: DEPARTMENTS,  isShared: true },
+  { key: 'category',      label: 'Category',       type: 'combobox', width: 155,                        isShared: true },
+  { key: 'sub_category',  label: 'SubCategory',    type: 'select',   width: 125, options: SUB_CATEGORIES, isShared: true },
+  { key: 'article_no',    label: 'ArticleNo',      type: 'text',     width: 115, isShared: true },
+  { key: 'heels',         label: 'Heels',          type: 'dynamic-select', width: 140, isShared: true },
+  { key: 'section',       label: 'Section',        type: 'dynamic-select', width: 110, isShared: true },
+  { key: 'season',        label: 'Season',         type: 'select',   width: 95,  options: SEASONS, isShared: true },
+  { key: 'pur_price',     label: 'Pur Price',      type: 'text',     width: 95,  isShared: true },
+  { key: 'logo',          label: 'Logo',           type: 'select',   width: 150, options: LOGO_OPTIONS, isShared: true },
+  { key: 'supplier_name', label: 'Supplier',       type: 'combobox', width: 200, options: SUPPLIER_NAMES, isShared: true },
 ];
 
 const VARIANT_ACCENT = [
@@ -49,9 +43,10 @@ const VARIANT_ACCENT = [
 interface Props {
   open: boolean; onClose: () => void; onSaved: () => void;
   initialEntry?: ShoeEntry | null;
+  stickySupplier?: string;
 }
 
-export default function BoardModal({ open, onClose, onSaved, initialEntry }: Props) {
+export default function BoardModal({ open, onClose, onSaved, initialEntry, stickySupplier }: Props) {
   const isEdit = !!initialEntry;
   const [entry, setEntry] = useState<Omit<ShoeEntry, 'id' | 'created_at'>>(emptyEntry());
   const [variants, setVariants] = useState<ColorVariant[]>([emptyVariant()]);
@@ -62,18 +57,14 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
   const sketchRef = useRef<SketchHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [listening, setListening] = useState(false);
-  const [liveText, setLiveText] = useState('');
-  const [filledFields, setFilledFields] = useState<string[]>([]);
-  const [showFilled, setShowFilled] = useState(false);
-  const recogRef = useRef<SR | null>(null);
-  const manualStopRef = useRef(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const SRAPIRef = useRef<any>(null);
-  const fullTranscriptRef = useRef('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const entryRef = useRef(entry);
-  useEffect(() => { entryRef.current = entry; }, [entry]);
+  // Voice memo (saved with entry)
+  const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
+  const [voiceRecording, setVoiceRecording] = useState(false);
+  const [voicePlaying, setVoicePlaying] = useState(false);
+  const voiceMediaRef = useRef<MediaRecorder | null>(null);
+  const voiceChunksRef = useRef<Blob[]>([]);
+  const voiceAudioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceBlobUrlRef = useRef<string>('');
 
   // Notes sketch state
   const [notesMode, setNotesMode] = useState<'text' | 'sketch'>('text');
@@ -86,9 +77,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
   const notesCanvasSized = useRef(false);
   const pendingSketchData = useRef('');
   const originalSketchRef = useRef('');
-
-  const variantsRef = useRef(variants);
-  useEffect(() => { variantsRef.current = variants; }, [variants]);
 
   const initNotesCanvas = useCallback(() => {
     const c = notesCanvasRef.current;
@@ -170,102 +158,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
     else ctx.clearRect(0, 0, c.width, c.height);
   }, []);
 
-  const sendToClaude = useCallback((transcript: string) => {
-    const existingColors = variantsRef.current
-      .map((v, i) => v.color ? `color ${i + 1}=${v.color}` : null)
-      .filter(Boolean);
-    fetch('/api/parse-voice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        transcript,
-        department: entryRef.current.department,
-        existingColors: existingColors.length ? existingColors : undefined,
-      }),
-    })
-      .then(r => r.json())
-      .then(({ fields }) => {
-        if (!fields || !Object.keys(fields).length) return;
-        const sharedFields: Record<string, string> = {};
-        const variantUpdates: Record<number, Record<string, string>> = {};
-        for (const [key, value] of Object.entries(fields as Record<string, string>)) {
-          const vm = key.match(/^v(\d+)_(.+)$/);
-          if (vm) {
-            const n = parseInt(vm[1]);
-            if (!variantUpdates[n]) variantUpdates[n] = {};
-            variantUpdates[n][vm[2]] = value;
-          } else {
-            sharedFields[key] = value;
-          }
-        }
-        if (Object.keys(sharedFields).length) setEntry(prev => ({ ...prev, ...sharedFields }));
-        if (Object.keys(variantUpdates).length) {
-          setVariants(prev => {
-            const next = [...prev];
-            for (const [nStr, vf] of Object.entries(variantUpdates)) {
-              const n = parseInt(nStr);
-              while (next.length <= n) next.push(emptyVariant());
-              next[n] = { ...next[n], ...vf };
-            }
-            return next.slice(0, 6);
-          });
-        }
-        const labels = [...new Set(Object.keys(fields).map(k =>
-          k.replace(/^v\d+_/, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-        ))];
-        setFilledFields(labels);
-        setShowFilled(true);
-        setTimeout(() => setShowFilled(false), 4000);
-      })
-      .catch(() => {});
-  }, []);
-
-  const stopVoice = useCallback(() => {
-    manualStopRef.current = true;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    fullTranscriptRef.current = '';
-    recogRef.current?.stop();
-    setListening(false); setLiveText('');
-  }, []);
-
-  const startVoice = useCallback(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const SRAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SRAPI) { alert('Voice input requires Chrome or Edge.'); return; }
-    SRAPIRef.current = SRAPI;
-    manualStopRef.current = false;
-    fullTranscriptRef.current = '';
-    const makeRecog = () => {
-      const recog: SR = new SRAPI();
-      recog.continuous = true; recog.interimResults = true; recog.lang = 'en-IN';
-      recog.onresult = (e: SREvent) => {
-        let newFinal = '', interim = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) newFinal += e.results[i][0].transcript + ' ';
-          else interim += e.results[i][0].transcript;
-        }
-        if (newFinal.trim()) fullTranscriptRef.current = (fullTranscriptRef.current + ' ' + newFinal).trim();
-        setLiveText(interim || fullTranscriptRef.current);
-        if (newFinal.trim()) {
-          if (debounceRef.current) clearTimeout(debounceRef.current);
-          debounceRef.current = setTimeout(() => sendToClaude(fullTranscriptRef.current), 1500);
-        }
-      };
-      recog.onend = () => {
-        if (!manualStopRef.current && SRAPIRef.current) {
-          try { const r = makeRecog(); recogRef.current = r; r.start(); }
-          catch { setListening(false); setLiveText(''); }
-        } else { setListening(false); setLiveText(''); }
-      };
-      recog.onerror = () => {
-        if (!manualStopRef.current) { try { recogRef.current?.stop(); } catch { /* ignore */ } }
-        else { setListening(false); setLiveText(''); }
-      };
-      return recog;
-    };
-    const recog = makeRecog(); recogRef.current = recog; recog.start(); setListening(true);
-  }, [sendToClaude]);
-
   useEffect(() => {
     if (open) {
       if (initialEntry) {
@@ -284,9 +176,16 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
           setVariants([v]);
         }
       } else {
-        setEntry(emptyEntry());
+        const blank = emptyEntry();
+        if (stickySupplier) blank.supplier_name = stickySupplier;
+        setEntry(blank);
         setVariants([emptyVariant()]);
       }
+      // Reset voice memo state
+      voiceMediaRef.current?.stop(); voiceMediaRef.current = null;
+      voiceAudioRef.current?.pause(); voiceAudioRef.current = null;
+      if (voiceBlobUrlRef.current) { URL.revokeObjectURL(voiceBlobUrlRef.current); voiceBlobUrlRef.current = ''; }
+      setVoiceBlob(null); setVoiceRecording(false); setVoicePlaying(false);
       setSketchMode(false); setSaved(false);
       setNotesMode('text'); setNotesEraser(false);
       notesCanvasSized.current = false;
@@ -326,9 +225,41 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
     }
   }, []);
 
-  const setVariantField = useCallback((n: number, field: string, value: string) => {
-    setVariants(prev => prev.map((v, i) => i === n ? { ...v, [field]: value } : v));
+  const activeSizes = useMemo(() => {
+    if (entry.department === 'Kids Footwears')
+      return entry.kids_size ? (KIDS_SIZE_RANGES[entry.kids_size] ?? []) : [];
+    return entry.department ? (DEPT_SIZES[entry.department] ?? []) : [];
+  }, [entry.department, entry.kids_size]);
+
+  const isKids = entry.department === 'Kids Footwears';
+
+  const computeSizeSet = useCallback((v: ColorVariant, sizes: number[]): string => {
+    const sizesWithQty = sizes.filter(s => Number((v as unknown as Record<string, string>)[`qty_${s}`] || 0) > 0);
+    if (sizesWithQty.length === 0) return '';
+    const min = sizesWithQty[0];
+    const max = sizesWithQty[sizesWithQty.length - 1];
+    const range = sizes.filter(s => s >= min && s <= max);
+    const qtys = range.map(s => (v as unknown as Record<string, string>)[`qty_${s}`] || '0').join('');
+    return `${min}-${max}_${qtys}`;
   }, []);
+
+  const SET_TYPE_A = { qty_36: '1', qty_37: '1', qty_38: '2', qty_39: '2', qty_40: '1', qty_41: '1' };
+  const SET_TYPE_B = { qty_36: '1', qty_37: '1', qty_38: '1', qty_39: '1', qty_40: '1', qty_41: '1' };
+
+  const setVariantField = useCallback((n: number, field: string, value: string) => {
+    setVariants(prev => prev.map((v, i) => {
+      if (i !== n) return v;
+      let updated = { ...v, [field]: value };
+      if (field === 'set_type') {
+        if (value === 'A') updated = { ...updated, ...SET_TYPE_A };
+        else if (value === 'B') updated = { ...updated, ...SET_TYPE_B };
+      }
+      if (field.startsWith('qty_') || field === 'set_type') {
+        updated.size_set = computeSizeSet(updated, activeSizes);
+      }
+      return updated;
+    }));
+  }, [activeSizes, computeSizeSet]);
 
   const addVariant = useCallback(() => {
     setVariants(prev => prev.length < 6 ? [...prev, emptyVariant()] : prev);
@@ -337,14 +268,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
   const removeVariant = useCallback((n: number) => {
     setVariants(prev => prev.length > 1 ? prev.filter((_, i) => i !== n) : prev);
   }, []);
-
-  const activeSizes = useMemo(() => {
-    if (entry.department === 'Kids Footwears')
-      return entry.kids_size ? (KIDS_SIZE_RANGES[entry.kids_size] ?? []) : [];
-    return entry.department ? (DEPT_SIZES[entry.department] ?? []) : [];
-  }, [entry.department, entry.kids_size]);
-
-  const isKids = entry.department === 'Kids Footwears';
 
   const sharedCols = useMemo((): ColDef[] => {
     const kidsSizeCol: ColDef[] = isKids ? [{ key: 'kids_size', label: 'Size', type: 'select', width: 80, options: KIDS_SIZES, isShared: true }] : [];
@@ -362,7 +285,8 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
     const [totalQtyCol, multiplyCol] = calcCols.length === 2 ? calcCols : [calcCols[0], calcCols[1]];
     return [
       { key: 'color',    label: 'Color',    type: 'variant-select', width: 105, options: COLORS },
-      { key: 'size_set', label: 'Size Set', type: 'variant-text',   width: 105 },
+      ...(entry.department === 'Ladies Footwears' ? [{ key: 'set_type', label: 'Set Type', type: 'variant-select' as const, width: 85, options: ['A', 'B'] }] : []),
+      { key: 'size_set', label: 'Size Set', type: 'variant-text',   width: 130 },
       ...sizeCols,
       ...(calcCols.length === 2 ? [
         totalQtyCol,
@@ -373,7 +297,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
         { key: 'set_qty', label: 'Set Qty', type: 'variant-text' as const, width: 85 },
       ]),
     ];
-  }, [activeSizes]);
+  }, [activeSizes, entry.department]);
 
   const allCols = useMemo(() => [...sharedCols, ...variantCols], [sharedCols, variantCols]);
   const totalWidth = useMemo(() => allCols.reduce((s, c) => s + c.width, 0) + 36, [allCols]);
@@ -397,9 +321,54 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
       const url = await uploadPhoto(file);
       set('picture', url);
     } catch {
-      // fallback to local object URL on upload failure
       set('picture', URL.createObjectURL(file));
     }
+  };
+
+  const startVoiceMemo = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      voiceChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) voiceChunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(voiceChunksRef.current, { type: mr.mimeType || 'audio/webm' });
+        setVoiceBlob(blob);
+        setVoiceRecording(false);
+      };
+      mr.start();
+      voiceMediaRef.current = mr;
+      setVoiceRecording(true);
+    } catch { alert('Microphone access denied.'); }
+  };
+
+  const stopVoiceMemo = () => {
+    voiceMediaRef.current?.stop();
+    voiceMediaRef.current = null;
+    setVoiceRecording(false);
+  };
+
+  const toggleVoicePlay = () => {
+    if (!voiceBlob) return;
+    if (voicePlaying) {
+      voiceAudioRef.current?.pause();
+      setVoicePlaying(false);
+      return;
+    }
+    if (voiceBlobUrlRef.current) URL.revokeObjectURL(voiceBlobUrlRef.current);
+    const url = URL.createObjectURL(voiceBlob);
+    voiceBlobUrlRef.current = url;
+    voiceAudioRef.current = new Audio(url);
+    voiceAudioRef.current.onended = () => setVoicePlaying(false);
+    voiceAudioRef.current.play().catch(() => setVoicePlaying(false));
+    setVoicePlaying(true);
+  };
+
+  const deleteVoiceMemo = () => {
+    voiceAudioRef.current?.pause(); voiceAudioRef.current = null;
+    if (voiceBlobUrlRef.current) { URL.revokeObjectURL(voiceBlobUrlRef.current); voiceBlobUrlRef.current = ''; }
+    setVoiceBlob(null); setVoicePlaying(false);
   };
 
   const handleSave = async () => {
@@ -418,12 +387,19 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
         // User never opened the sketch tab — preserve original sketch unchanged
         sketchData = originalSketchRef.current;
       }
+      // Upload voice memo if recorded in modal
+      let voiceNoteUrl = (entry as unknown as Record<string, string>).voice_note_url || '';
+      if (voiceBlob) {
+        try { voiceNoteUrl = await uploadVoiceNote(voiceBlob, `modal-${Date.now()}`); }
+        catch (e) { console.error('Voice memo upload failed:', e); }
+      }
       const v0 = variants[0] || emptyVariant();
       const v0qty: Record<string, string> = {};
       for (let i = 15; i <= 47; i++) v0qty[`qty_${i}`] = (v0 as Record<string, string>)[`qty_${i}`] || '';
       const payload = {
         ...entry, color: v0.color, size_set: v0.size_set, set_qty: v0.set_qty,
         ...v0qty, color_variants: JSON.stringify(variants), sketch_data: sketchData,
+        voice_note_url: voiceNoteUrl,
       };
       if (isEdit && initialEntry?.id) await updateEntry(initialEntry.id, payload);
       else await saveEntry(payload);
@@ -446,14 +422,20 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
     };
     if (col.type === 'photo') {
       const val = entry.picture || '';
+      const supplierCode = entry.supplier_name ? SUPPLIER_CODES[entry.supplier_name.trim()] : undefined;
+      const imageLabel = supplierCode && entry.article_no
+        ? `${supplierCode}-${entry.article_no}`
+        : supplierCode || (entry.article_no || '');
       return (
         <div onClick={() => !sketchMode && fileInputRef.current?.click()}
           style={{ width: '100%', height: '100%', cursor: sketchMode ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-            background: val ? 'transparent' : 'var(--bg)' }}>
+            position: 'relative', background: val ? 'transparent' : 'var(--bg)' }}>
           {val
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={val} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? (val && imageLabel
+                ? <LabeledPhoto src={val} label={imageLabel} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : // eslint-disable-next-line @next/next/no-img-element
+                  <img src={val} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />)
             : <div style={{ textAlign: 'center', opacity: 0.5 }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style={{ margin: '0 auto 4px', display: 'block' }}>
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="var(--red)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -472,9 +454,31 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
         <select value={val} onChange={e => set(col.key, e.target.value)}
           disabled={sketchMode || isLocked}
           style={{ ...baseInput, cursor: (sketchMode || isLocked) ? 'default' : 'pointer', appearance: 'auto', opacity: isLocked ? 0.4 : 1 }}>
-          <option value="">{isLocked ? '— pick dept —' : ''}</option>
+          <option value="">{isLocked ? '— pick dept —' : '[None]'}</option>
           {options.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
+      );
+    }
+    if (col.type === 'combobox') {
+      const val = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
+      const options = col.options ?? getDynamicOptions(col.key);
+      const isLocked = col.key === 'category' && !entry.department;
+      const listId = `combo-${col.key}`;
+      return (
+        <>
+          <input
+            type="text"
+            list={listId}
+            value={val}
+            onChange={e => set(col.key, e.target.value)}
+            disabled={sketchMode || isLocked}
+            placeholder={isLocked ? '— pick dept —' : '[None]'}
+            style={{ ...baseInput, opacity: isLocked ? 0.4 : 1 }}
+          />
+          <datalist id={listId}>
+            {options.map(o => <option key={o} value={o} />)}
+          </datalist>
+        </>
       );
     }
     const val = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
@@ -507,7 +511,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
           disabled={sketchMode}
           style={{ ...baseInput, cursor: sketchMode ? 'default' : 'pointer', appearance: 'auto',
             background: val ? `${accent}0d` : 'transparent' }}>
-          <option value=""></option>
+          <option value="">[None]</option>
           {(col.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       );
@@ -539,7 +543,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
               {isEdit ? `Edit — ${displayTitle}` : `Kin's`}
             </p>
             <p className="text-xs tracking-widest mt-0.5" style={{ color: 'var(--text-muted)', letterSpacing: '0.18em' }}>
-              LADIES ARTICLE BOARD
+              KINS ARTICLE BOARD
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -568,19 +572,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
             )}
             <button onClick={() => { setEntry(emptyEntry()); setVariants([emptyVariant()]); sketchRef.current?.clear(); }}
               className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '0.6rem' }}>RESET</button>
-            <button onClick={listening ? stopVoice : startVoice}
-              className="flex items-center gap-1.5 rounded-lg transition-all"
-              style={{ padding: '6px 12px', fontSize: '0.6rem', letterSpacing: '0.1em', fontWeight: 600,
-                background: listening ? 'var(--red)' : 'rgba(196,21,21,0.08)',
-                color: listening ? '#fff' : 'var(--red)',
-                border: `1px solid ${listening ? 'var(--red)' : 'rgba(196,21,21,0.25)'}`,
-                animation: listening ? 'pulse-mic 1.2s ease-in-out infinite' : 'none' }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                <rect x="9" y="2" width="6" height="12" rx="3" fill={listening ? '#fff' : 'var(--red)'}/>
-                <path d="M5 10a7 7 0 0 0 14 0M12 19v3M9 22h6" stroke={listening ? '#fff' : 'var(--red)'} strokeWidth="2" strokeLinecap="round"/>
-              </svg>
-              {listening ? 'STOP' : 'VOICE'}
-            </button>
             <button onClick={onClose} style={{ color: 'var(--text-muted)', padding: 4 }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M18 6 6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -588,33 +579,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
             </button>
           </div>
         </div>
-
-        {/* Voice banner */}
-        {listening && (
-          <div className="flex-shrink-0 flex items-center gap-3 px-5 py-2"
-            style={{ background: 'rgba(196,21,21,0.06)', borderBottom: '1px solid rgba(196,21,21,0.15)' }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--red)', animation: 'pulse-mic 1s ease-in-out infinite', flexShrink: 0 }} />
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-mid)', fontFamily: 'DM Mono, monospace', flex: 1, minWidth: 0 }}>
-              {liveText || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Listening…</span>}
-            </p>
-            <p style={{ fontSize: '0.58rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-              e.g. "ladies sandal color 1 black set qty 8, color 2 red set qty 6"
-            </p>
-          </div>
-        )}
-
-        {/* Filled toast */}
-        {showFilled && (
-          <div className="flex-shrink-0 flex items-center gap-2 px-5 py-2"
-            style={{ background: 'rgba(30,150,80,0.08)', borderBottom: '1px solid rgba(30,150,80,0.2)' }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
-              <path d="M5 12l5 5 9-9" stroke="rgb(30,150,80)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <p style={{ fontSize: '0.68rem', color: 'rgb(30,150,80)', fontFamily: 'DM Mono, monospace' }}>
-              Filled: {filledFields.join(', ')}
-            </p>
-          </div>
-        )}
 
         {/* Spreadsheet */}
         <div className="flex-shrink-0 relative" style={{ overflow: 'hidden', maxHeight: '52vh' }}>
@@ -649,7 +613,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
                 </tr>
               </thead>
               <tbody>
-                {variants.map((v, n) => {
+                {variants.map((_, n) => {
                   const accent = VARIANT_ACCENT[n % VARIANT_ACCENT.length];
                   return (
                     <tr key={n} style={{ borderLeft: `3px solid ${accent}` }}>
@@ -742,7 +706,18 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
               ))}
             </div>
 
-            {notesMode === 'sketch' && (
+            {isEdit && (
+              <div className="flex items-center gap-1" style={{ padding: '4px 8px', borderRadius: 6,
+                background: 'rgba(196,21,21,0.06)', border: '1px solid rgba(196,21,21,0.2)' }}>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="11" width="18" height="11" rx="2" stroke="var(--red)" strokeWidth="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="var(--red)" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                <span style={{ fontSize: '0.58rem', color: 'var(--red)', fontWeight: 600, letterSpacing: '0.08em' }}>LOCKED</span>
+              </div>
+            )}
+
+            {notesMode === 'sketch' && !isEdit && (
               <>
                 <button onClick={notesUndo}
                   className="flex items-center gap-1 rounded-lg transition-colors"
@@ -795,25 +770,96 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry }: Pro
           {/* Content — fills all remaining space */}
           <div className="flex-1 min-h-0 relative">
             <textarea
-              value={entry.notes} onChange={e => set('notes', e.target.value)}
-              placeholder="Add notes about this item..."
+              value={entry.notes} onChange={e => !isEdit && set('notes', e.target.value)}
+              readOnly={isEdit}
+              placeholder={isEdit ? '' : 'Add notes about this item...'}
               className="w-full h-full px-3 py-2.5 rounded-lg outline-none resize-none"
               style={{ display: notesMode === 'text' ? 'block' : 'none',
-                background: 'var(--bg)', border: '1.5px solid var(--border-mid)',
+                background: isEdit ? 'var(--bg-card)' : 'var(--bg)',
+                border: '1.5px solid var(--border-mid)',
                 color: 'var(--text)', fontFamily: 'DM Mono, monospace', fontSize: '0.75rem',
-                boxSizing: 'border-box' }}
-              onFocus={e => { e.target.style.borderColor = 'var(--red)'; }}
+                boxSizing: 'border-box', cursor: isEdit ? 'default' : undefined }}
+              onFocus={e => { if (!isEdit) e.target.style.borderColor = 'var(--red)'; }}
               onBlur={e => { e.target.style.borderColor = 'var(--border-mid)'; }} />
             <canvas ref={notesCanvasRef}
               style={{ display: notesMode === 'sketch' ? 'block' : 'none',
                 width: '100%', height: '100%',
-                cursor: notesEraser ? 'cell' : 'crosshair',
+                cursor: isEdit ? 'default' : (notesEraser ? 'cell' : 'crosshair'),
                 touchAction: 'none',
                 background: 'white', borderRadius: 8,
-                border: '1.5px solid var(--border-mid)', boxSizing: 'border-box' }}
+                border: '1.5px solid var(--border-mid)', boxSizing: 'border-box',
+                pointerEvents: isEdit ? 'none' : undefined,
+                opacity: isEdit ? 0.85 : 1 }}
               onPointerDown={notesOnDown} onPointerMove={notesOnMove}
               onPointerUp={notesOnUp} onPointerLeave={notesOnUp} />
           </div>
+
+          {/* Voice Memo strip */}
+          {notesMode === 'text' && (
+            <div className="flex items-center gap-2 flex-shrink-0" style={{ padding: '4px 2px' }}>
+              <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)', letterSpacing: '0.1em', flexShrink: 0 }}>
+                VOICE MEMO
+              </span>
+              {voiceBlob ? (
+                <>
+                  <span style={{ fontSize: '0.58rem', color: '#1a8a3c', fontWeight: 700, letterSpacing: '0.04em' }}>
+                    ● READY
+                  </span>
+                  <button
+                    onClick={toggleVoicePlay}
+                    title={voicePlaying ? 'Stop preview' : 'Preview recording'}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 24, height: 24, borderRadius: 5, border: 'none', cursor: 'pointer',
+                      background: voicePlaying ? 'rgba(196,21,21,0.1)' : 'rgba(26,138,60,0.1)',
+                      color: voicePlaying ? 'var(--red)' : '#1a8a3c' }}
+                  >
+                    {voicePlaying
+                      ? <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+                      : <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>}
+                  </button>
+                  <button
+                    onClick={deleteVoiceMemo}
+                    title="Remove recording"
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      width: 24, height: 24, borderRadius: 5, border: 'none', cursor: 'pointer',
+                      background: 'rgba(196,21,21,0.06)', color: 'var(--red)' }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>
+                  <span style={{ fontSize: '0.52rem', color: 'var(--text-muted)' }}>saves with entry</span>
+                </>
+              ) : voiceRecording ? (
+                <>
+                  <button
+                    onClick={stopVoiceMemo}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 5,
+                      border: '1px solid rgba(196,21,21,0.4)', cursor: 'pointer',
+                      background: 'rgba(196,21,21,0.08)', color: 'var(--red)',
+                      fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.06em' }}
+                  >
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                    STOP
+                  </button>
+                  <span style={{ fontSize: '0.58rem', color: 'var(--red)', letterSpacing: '0.06em',
+                    animation: 'pulse 1s infinite' }}>● REC</span>
+                </>
+              ) : (
+                <button
+                  onClick={startVoiceMemo}
+                  style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 5,
+                    border: '1px solid var(--border-mid)', cursor: 'pointer',
+                    background: 'var(--gold-faint2)', color: 'var(--gold)',
+                    fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.06em' }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <rect x="9" y="2" width="6" height="11" rx="3"/>
+                    <path d="M5 10a7 7 0 0 0 14 0M12 19v3M9 22h6"/>
+                  </svg>
+                  RECORD
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Entry summary */}
           <div className="flex-shrink-0">

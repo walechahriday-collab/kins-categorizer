@@ -45,10 +45,11 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
 
     const pic = (e.picture || '').startsWith('http') ? e.picture : '';
     const sectionLabel = SECTION_LABEL[e.section] ?? e.section ?? '';
-    // Convert UTC timestamp to IST (UTC+5:30) date string, then back to Date
     const rawDate = e.created_at ? new Date(e.created_at) : new Date();
     const istOffset = 5.5 * 60 * 60000;
     const entryDate = new Date(rawDate.getTime() + istOffset);
+
+    const description = `${e.sub_category} - ${e.category} (${e.department})`;
 
     for (const v of variants) {
       const vMap = v as unknown as Record<string, string>;
@@ -71,11 +72,14 @@ export async function exportToExcelV2(entries: ShoeEntry[]) {
             case 'SubCategory':   return e.sub_category || '';
             case 'ArticleNo':     return e.article_no || '';
             case 'CodingType':    return 1;
-            case 'UOMName':       return 'PRS';
+            case 'UOMName':       return '';
+            case 'Description':   return description;
             case 'Color':         return v.color || '';
             case 'Size':          return toNum(size);
             case 'Style':         return e.heels || '';
             case 'Brand':         return 'Ket';
+            case 'HSNCode':       return 64059000;
+            case 'Supplier':      return e.supplier_name || '';
             case 'ItemCode':      return itemCode;
             case 'PurPrice':      return toNum(e.pur_price || '');
             case 'ItemMrp':       return 1.00;
