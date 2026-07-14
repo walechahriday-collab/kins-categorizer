@@ -426,17 +426,31 @@ export default function PlanningBoard({ open, onClose }: Props) {
                               </button>
                             </div>
                           ) : (
-                            <button
-                              onClick={() => setEditingSinceKey(k)}
-                              title="Click to change the counting start date"
-                              style={{
-                                fontSize: '0.68rem', color: 'var(--text-muted)', background: 'none',
-                                border: 'none', cursor: 'pointer', textDecoration: 'underline dotted',
-                                textUnderlineOffset: 2,
-                              }}
-                            >
-                              ({sinceLabel(plan?.period_start)})
-                            </button>
+                            <div className="flex items-center gap-1.5 mt-1">
+                              <button
+                                onClick={() => setEditingSinceKey(k)}
+                                title="Click to change the counting start date"
+                                style={{
+                                  fontSize: '0.68rem', color: 'var(--text-muted)', background: 'none',
+                                  border: 'none', cursor: 'pointer', textDecoration: 'underline dotted',
+                                  textUnderlineOffset: 2,
+                                }}
+                              >
+                                ({sinceLabel(plan?.period_start)})
+                              </button>
+                              {plan?.period_start && (
+                                <button
+                                  onClick={() => handleSinceChange(selectedDept, cat, '')}
+                                  title="Set back to all-time"
+                                  style={{
+                                    fontSize: '0.58rem', fontWeight: 700, color: COLOR_UNDER,
+                                    background: 'none', border: 'none', cursor: 'pointer', letterSpacing: '0.02em',
+                                  }}
+                                >
+                                  ALL-TIME
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
 
