@@ -394,15 +394,24 @@ export default function PlanningBoard({ open, onClose }: Props) {
                         <button
                           onClick={() => setExpandedCategory(isExpanded ? null : cat)}
                           className="flex items-center gap-2"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          style={{
+                            background: isExpanded ? 'var(--gold-faint)' : 'none', border: 'none', cursor: 'pointer',
+                            padding: '6px 10px', margin: '-6px -10px', borderRadius: 8,
+                          }}
                           title={isExpanded ? 'Hide Casualwear / Partywear / heels breakdown' : 'Show Casualwear / Partywear / heels breakdown'}
                         >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, color: 'var(--text-muted)' }}>
-                            <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, color: 'var(--red)' }}>
+                            <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
                           </svg>
                           <span className="font-display italic font-bold" style={{ fontSize: '1.9rem', color: 'var(--text)', lineHeight: 1 }}>
                             {cat}
+                          </span>
+                          <span style={{
+                            fontSize: '0.6rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.04em',
+                            textDecoration: 'underline dotted', textUnderlineOffset: 3, marginLeft: 2,
+                          }}>
+                            {isExpanded ? 'hide breakdown' : 'tap for breakdown'}
                           </span>
                         </button>
                         {isOver && (
