@@ -1,13 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DEPARTMENTS, DEPT_CATEGORIES } from '@/lib/categories';
+import { DEPARTMENTS, DEPT_CATEGORIES, SUB_CATEGORIES } from '@/lib/categories';
 import {
   fetchOrderPlans, fetchOrderProgress, fetchDeptSubcategoryTotals,
+  fetchOrderPlanDetails, fetchOrderProgressDetail,
   upsertPlannedQty, resetOrderPlan, resetAllOrderPlans, setPeriodStart,
-  OrderProgress, DeptSubcategoryTotal,
+  OrderProgress, DeptSubcategoryTotal, OrderProgressDetail,
 } from '@/lib/storage';
-import { OrderPlan } from '@/lib/categories';
+import { OrderPlan, OrderPlanDetail } from '@/lib/categories';
 
 interface Props {
   open: boolean;
@@ -46,11 +47,14 @@ export default function PlanningBoard({ open, onClose }: Props) {
   const [plans, setPlans] = useState<Record<string, OrderPlan>>({});
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [deptTotals, setDeptTotals] = useState<Record<string, { casual: number; party: number }>>({});
+  const [detailPlans, setDetailPlans] = useState<OrderPlanDetail[]>([]);
+  const [detailProgress, setDetailProgress] = useState<OrderProgressDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [selectedDept, setSelectedDept] = useState<string>(DEPARTMENTS[0]);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [editingSinceKey, setEditingSinceKey] = useState<string | null>(null);
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -62,9 +66,12 @@ export default function PlanningBoard({ open, onClose }: Props) {
     setLoading(true);
     setLoadError(false);
     try {
-      const [planRows, progressRows, subcatRows] = await Promise.all([
+      const [planRows, progressRows, subcatRows, detailPlanRows, detailProgressRows] = await Promise.all([
         fetchOrderPlans(), fetchOrderProgress(), fetchDeptSubcategoryTotals(),
+        fetchOrderPlanDetails(), fetchOrderProgressDetail(),
       ]);
+      setDetailPlans(detailPlanRows);
+      setDetailProgress(detailProgressRows);
       const planMap: Record<string, OrderPlan> = {};
       for (const p of planRows) planMap[key(p.department, p.category)] = p;
       setPlans(planMap);
@@ -157,6 +164,38 @@ export default function PlanningBoard({ open, onClose }: Props) {
   }, [selectedDept, progress]);
 
   const dt = deptTotals[selectedDept] ?? { casual: 0, party: 0 };
+
+  type HeelBreakdown = { heels: string; planned: number; ordered: number };
+  type SubBreakdown = { subCategory: string; planned: number; ordered: number; heels: HeelBreakdown[] };
+
+  const categoryBreakdown = useMemo((): SubBreakdown[] | null => {
+    if (!expandedCategory) return null;
+    const bySubHeel: Record<string, Record<string, { planned: number; ordered: number }>> = {};
+    for (const sub of SUB_CATEGORIES) bySubHeel[sub] = {};
+    for (const d of detailPlans) {
+      if (d.department !== selectedDept || d.category !== expandedCategory) continue;
+      bySubHeel[d.sub_category] = bySubHeel[d.sub_category] ?? {};
+      const cur = bySubHeel[d.sub_category][d.heels] ?? { planned: 0, ordered: 0 };
+      bySubHeel[d.sub_category][d.heels] = { ...cur, planned: d.planned_qty };
+    }
+    for (const d of detailProgress) {
+      if (d.department !== selectedDept || d.category !== expandedCategory) continue;
+      bySubHeel[d.sub_category] = bySubHeel[d.sub_category] ?? {};
+      const cur = bySubHeel[d.sub_category][d.heels] ?? { planned: 0, ordered: 0 };
+      bySubHeel[d.sub_category][d.heels] = { ...cur, ordered: d.ordered_qty };
+    }
+    return Object.entries(bySubHeel)
+      .map(([subCategory, heelMap]) => {
+        const heels = Object.entries(heelMap)
+          .map(([heels, v]) => ({ heels, ...v }))
+          .sort((a, b) => b.ordered - a.ordered || b.planned - a.planned || a.heels.localeCompare(b.heels));
+        const planned = heels.reduce((s, h) => s + h.planned, 0);
+        const ordered = heels.reduce((s, h) => s + h.ordered, 0);
+        return { subCategory, planned, ordered, heels };
+      })
+      .filter(s => s.planned > 0 || s.ordered > 0)
+      .sort((a, b) => b.ordered - a.ordered);
+  }, [expandedCategory, selectedDept, detailPlans, detailProgress]);
 
   if (!open) return null;
 
@@ -268,7 +307,7 @@ export default function PlanningBoard({ open, onClose }: Props) {
             return (
               <button
                 key={dept}
-                onClick={() => setSelectedDept(dept)}
+                onClick={() => { setSelectedDept(dept); setExpandedCategory(null); }}
                 style={{
                   flexShrink: 0, padding: '8px 14px', borderRadius: 8,
                   fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.03em',
@@ -342,6 +381,7 @@ export default function PlanningBoard({ open, onClose }: Props) {
                   const pct = hasTarget ? Math.min(100, Math.round((orderedQty / plannedQty) * 100)) : 0;
                   const barColor = isOver ? COLOR_OVER : isExact ? COLOR_EXACT : COLOR_UNDER;
                   const isSaving = savingKey === k;
+                  const isExpanded = expandedCategory === cat;
 
                   return (
                     <div key={cat} className="entry-card"
@@ -351,9 +391,20 @@ export default function PlanningBoard({ open, onClose }: Props) {
                         background: isOver ? 'rgba(124,58,237,0.05)' : isExact ? 'rgba(26,138,60,0.05)' : '#fff',
                       }}>
                       <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-                        <span className="font-display italic font-bold" style={{ fontSize: '1.9rem', color: 'var(--text)', lineHeight: 1 }}>
-                          {cat}
-                        </span>
+                        <button
+                          onClick={() => setExpandedCategory(isExpanded ? null : cat)}
+                          className="flex items-center gap-2"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          title={isExpanded ? 'Hide Casualwear / Partywear / heels breakdown' : 'Show Casualwear / Partywear / heels breakdown'}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0, color: 'var(--text-muted)' }}>
+                            <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                          <span className="font-display italic font-bold" style={{ fontSize: '1.9rem', color: 'var(--text)', lineHeight: 1 }}>
+                            {cat}
+                          </span>
+                        </button>
                         {isOver && (
                           <span style={{
                             fontSize: '0.9rem', fontWeight: 800, color: '#fff', background: COLOR_OVER,
@@ -479,6 +530,43 @@ export default function PlanningBoard({ open, onClose }: Props) {
                           </svg>
                         </button>
                       </div>
+
+                      {isExpanded && (
+                        <div className="flex flex-col gap-3" style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)' }}>
+                          {!categoryBreakdown || categoryBreakdown.length === 0 ? (
+                            <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                              No Casualwear/Partywear or heel-level data yet for {cat}.
+                            </p>
+                          ) : categoryBreakdown.map(sub => (
+                            <div key={sub.subCategory}>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)', letterSpacing: '0.02em' }}>
+                                  {sub.subCategory}
+                                </span>
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-mid)' }}>
+                                  <strong>{sub.ordered}</strong> ordered / <strong>{sub.planned}</strong> planned
+                                </span>
+                              </div>
+                              <div className="flex flex-col gap-1">
+                                {sub.heels.map(h => {
+                                  const hOver = h.planned > 0 && h.ordered > h.planned;
+                                  const hExact = h.planned > 0 && h.ordered === h.planned;
+                                  const hColor = hOver ? COLOR_OVER : hExact ? COLOR_EXACT : 'var(--text-mid)';
+                                  return (
+                                    <div key={h.heels} className="flex items-center justify-between"
+                                      style={{ fontSize: '0.68rem', padding: '4px 10px', borderRadius: 6, background: 'var(--gold-faint)' }}>
+                                      <span style={{ color: 'var(--text-mid)' }}>{h.heels}</span>
+                                      <span style={{ fontWeight: 700, color: hColor }}>
+                                        {h.ordered} ordered · {h.planned} planned
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

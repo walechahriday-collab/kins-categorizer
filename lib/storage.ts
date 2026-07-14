@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { ShoeEntry, OrderPlan } from './categories';
+import { ShoeEntry, OrderPlan, OrderPlanDetail } from './categories';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_CONFIGURED =
@@ -270,6 +270,7 @@ export async function updateEntry(
 
 export type OrderProgress = { department: string; category: string; ordered_qty: number };
 export type DeptSubcategoryTotal = { department: string; sub_category: string; ordered_qty: number };
+export type OrderProgressDetail = { department: string; category: string; sub_category: string; heels: string; ordered_qty: number };
 
 export async function fetchOrderPlans(): Promise<OrderPlan[]> {
   if (!SUPABASE_CONFIGURED) return [];
@@ -290,6 +291,20 @@ export async function fetchDeptSubcategoryTotals(): Promise<DeptSubcategoryTotal
   const { data, error } = await supabase.rpc('get_department_subcategory_totals');
   if (error) throw error;
   return (data as DeptSubcategoryTotal[]) ?? [];
+}
+
+export async function fetchOrderPlanDetails(): Promise<OrderPlanDetail[]> {
+  if (!SUPABASE_CONFIGURED) return [];
+  const { data, error } = await supabase.from('order_plan_details').select('*');
+  if (error) throw error;
+  return (data as OrderPlanDetail[]) ?? [];
+}
+
+export async function fetchOrderProgressDetail(): Promise<OrderProgressDetail[]> {
+  if (!SUPABASE_CONFIGURED) return [];
+  const { data, error } = await supabase.rpc('get_order_progress_detail');
+  if (error) throw error;
+  return (data as OrderProgressDetail[]) ?? [];
 }
 
 export async function upsertPlannedQty(department: string, category: string, plannedQty: number): Promise<void> {
