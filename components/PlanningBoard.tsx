@@ -47,6 +47,7 @@ export default function PlanningBoard({ open, onClose }: Props) {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [deptTotals, setDeptTotals] = useState<Record<string, { casual: number; party: number }>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [selectedDept, setSelectedDept] = useState<string>(DEPARTMENTS[0]);
   const [savingKey, setSavingKey] = useState<string | null>(null);
   const [editingSinceKey, setEditingSinceKey] = useState<string | null>(null);
@@ -59,24 +60,30 @@ export default function PlanningBoard({ open, onClose }: Props) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [planRows, progressRows, subcatRows] = await Promise.all([
-      fetchOrderPlans(), fetchOrderProgress(), fetchDeptSubcategoryTotals(),
-    ]);
-    const planMap: Record<string, OrderPlan> = {};
-    for (const p of planRows) planMap[key(p.department, p.category)] = p;
-    setPlans(planMap);
+    setLoadError(false);
+    try {
+      const [planRows, progressRows, subcatRows] = await Promise.all([
+        fetchOrderPlans(), fetchOrderProgress(), fetchDeptSubcategoryTotals(),
+      ]);
+      const planMap: Record<string, OrderPlan> = {};
+      for (const p of planRows) planMap[key(p.department, p.category)] = p;
+      setPlans(planMap);
 
-    const progMap: Record<string, number> = {};
-    for (const p of progressRows as OrderProgress[]) progMap[key(p.department, p.category)] = p.ordered_qty;
-    setProgress(progMap);
+      const progMap: Record<string, number> = {};
+      for (const p of progressRows as OrderProgress[]) progMap[key(p.department, p.category)] = p.ordered_qty;
+      setProgress(progMap);
 
-    const dtMap: Record<string, { casual: number; party: number }> = {};
-    for (const d of subcatRows as DeptSubcategoryTotal[]) {
-      if (!dtMap[d.department]) dtMap[d.department] = { casual: 0, party: 0 };
-      if (d.sub_category === 'Casualwear') dtMap[d.department].casual += d.ordered_qty;
-      else if (d.sub_category === 'Partywear') dtMap[d.department].party += d.ordered_qty;
+      const dtMap: Record<string, { casual: number; party: number }> = {};
+      for (const d of subcatRows as DeptSubcategoryTotal[]) {
+        if (!dtMap[d.department]) dtMap[d.department] = { casual: 0, party: 0 };
+        if (d.sub_category === 'Casualwear') dtMap[d.department].casual += d.ordered_qty;
+        else if (d.sub_category === 'Partywear') dtMap[d.department].party += d.ordered_qty;
+      }
+      setDeptTotals(dtMap);
+    } catch (err) {
+      console.error('Failed to load planning data:', err);
+      setLoadError(true);
     }
-    setDeptTotals(dtMap);
     setLoading(false);
   }, []);
 
@@ -290,6 +297,19 @@ export default function PlanningBoard({ open, onClose }: Props) {
         <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
           {loading ? (
             <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' }}>Loading…</p>
+          ) : loadError ? (
+            <div className="flex flex-col items-center gap-3" style={{ padding: '3rem 0', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--red)', fontWeight: 700 }}>
+                Couldn&apos;t load planning data.
+              </p>
+              <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', maxWidth: 360 }}>
+                This is just a failed connection — nothing was lost or changed. Try again.
+              </p>
+              <button onClick={load} className="btn btn-outline"
+                style={{ padding: '8px 18px', fontSize: '0.65rem', color: 'var(--red)', borderColor: 'rgba(196,21,21,0.3)' }}>
+                RETRY
+              </button>
+            </div>
           ) : (
             <>
               <div className="flex items-center justify-between mb-4">

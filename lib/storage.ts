@@ -273,19 +273,22 @@ export type DeptSubcategoryTotal = { department: string; sub_category: string; o
 
 export async function fetchOrderPlans(): Promise<OrderPlan[]> {
   if (!SUPABASE_CONFIGURED) return [];
-  const { data } = await supabase.from('order_plans').select('*');
+  const { data, error } = await supabase.from('order_plans').select('*');
+  if (error) throw error;
   return (data as OrderPlan[]) ?? [];
 }
 
 export async function fetchOrderProgress(): Promise<OrderProgress[]> {
   if (!SUPABASE_CONFIGURED) return [];
-  const { data } = await supabase.rpc('get_order_progress');
+  const { data, error } = await supabase.rpc('get_order_progress');
+  if (error) throw error;
   return (data as OrderProgress[]) ?? [];
 }
 
 export async function fetchDeptSubcategoryTotals(): Promise<DeptSubcategoryTotal[]> {
   if (!SUPABASE_CONFIGURED) return [];
-  const { data } = await supabase.rpc('get_department_subcategory_totals');
+  const { data, error } = await supabase.rpc('get_department_subcategory_totals');
+  if (error) throw error;
   return (data as DeptSubcategoryTotal[]) ?? [];
 }
 
