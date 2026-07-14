@@ -15,7 +15,6 @@ interface Props {
 }
 
 const PLANNING_PIN = '0176';
-const PLANNING_SESSION_KEY = 'kins_planning_auth';
 
 const COLOR_UNDER = 'var(--red)';
 const COLOR_EXACT = '#1a8a3c';
@@ -54,8 +53,8 @@ export default function PlanningBoard({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    if (sessionStorage.getItem(PLANNING_SESSION_KEY) === 'ok') setUnlocked(true);
-    else { setUnlocked(false); setPin(''); }
+    setUnlocked(false);
+    setPin('');
   }, [open]);
 
   const load = useCallback(async () => {
@@ -85,7 +84,6 @@ export default function PlanningBoard({ open, onClose }: Props) {
 
   const submitPin = useCallback((value: string) => {
     if (value === PLANNING_PIN) {
-      sessionStorage.setItem(PLANNING_SESSION_KEY, 'ok');
       setUnlocked(true);
     } else {
       setPinError(true);
