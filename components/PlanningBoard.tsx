@@ -383,8 +383,7 @@ export default function PlanningBoard({ open, onClose }: Props) {
                                 type="date"
                                 autoFocus
                                 defaultValue={toDateInputValue(plan?.period_start)}
-                                onBlur={e => handleSinceChange(selectedDept, cat, e.target.value)}
-                                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                onChange={e => handleSinceChange(selectedDept, cat, e.target.value)}
                                 style={{
                                   fontSize: '0.65rem', padding: '3px 6px', borderRadius: 6,
                                   border: '1px solid var(--border-mid)', fontFamily: 'DM Mono, monospace',
