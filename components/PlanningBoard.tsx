@@ -128,6 +128,13 @@ export default function PlanningBoard({ open, onClose }: Props) {
   }, [load]);
 
   const handleSinceChange = useCallback(async (department: string, category: string, dateValue: string) => {
+    if (dateValue) {
+      const label = new Date(`${dateValue}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+      const proceed = confirm(
+        `Only count "${category}" orders placed on or after ${label}? Anything ordered before that date will stop counting toward this total until you clear it back to all-time.`
+      );
+      if (!proceed) { setEditingSinceKey(null); return; }
+    }
     const iso = dateValue ? new Date(`${dateValue}T00:00:00`).toISOString() : null;
     await setPeriodStart(department, category, iso);
     setEditingSinceKey(null);
