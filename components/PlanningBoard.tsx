@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DEPARTMENTS, DEPT_CATEGORIES } from '@/lib/categories';
 import {
   fetchOrderPlans, fetchOrderProgress, fetchDeptSubcategoryTotals,
-  upsertPlannedQty, resetOrderPlan, resetAllOrderPlans,
+  upsertPlannedQty, resetOrderPlan, resetAllOrderPlans, setPeriodStart,
   OrderProgress, DeptSubcategoryTotal,
 } from '@/lib/storage';
 import { OrderPlan } from '@/lib/categories';
@@ -25,13 +25,18 @@ function key(department: string, category: string): string {
   return `${department} ${category}`;
 }
 
-function sinceLabel(periodStart?: string): string {
+function sinceLabel(periodStart?: string | null): string {
   if (!periodStart) return 'all-time';
   const d = new Date(periodStart);
   const now = new Date();
   const daysAgo = Math.floor((now.getTime() - d.getTime()) / (24 * 60 * 60 * 1000));
   if (daysAgo <= 0) return 'since today';
   return `since ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`;
+}
+
+function toDateInputValue(periodStart?: string | null): string {
+  if (!periodStart) return '';
+  return new Date(periodStart).toISOString().slice(0, 10);
 }
 
 export default function PlanningBoard({ open, onClose }: Props) {
@@ -45,6 +50,7 @@ export default function PlanningBoard({ open, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [selectedDept, setSelectedDept] = useState<string>(DEPARTMENTS[0]);
   const [savingKey, setSavingKey] = useState<string | null>(null);
+  const [editingSinceKey, setEditingSinceKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -98,7 +104,7 @@ export default function PlanningBoard({ open, onClose }: Props) {
   const handlePlannedChange = useCallback(async (department: string, category: string, value: string) => {
     const k = key(department, category);
     const qty = Math.max(0, parseInt(value) || 0);
-    setPlans(prev => ({ ...prev, [k]: { ...(prev[k] ?? { department, category, period_start: new Date().toISOString() }), planned_qty: qty } }));
+    setPlans(prev => ({ ...prev, [k]: { ...(prev[k] ?? { department, category, period_start: null }), planned_qty: qty } }));
     setSavingKey(k);
     await upsertPlannedQty(department, category, qty);
     setSavingKey(null);
@@ -113,6 +119,13 @@ export default function PlanningBoard({ open, onClose }: Props) {
   const handleResetAll = useCallback(async () => {
     if (!confirm('Reset ALL planned/ordered counters? This starts every category fresh from now — it does not delete any entries.')) return;
     await resetAllOrderPlans();
+    await load();
+  }, [load]);
+
+  const handleSinceChange = useCallback(async (department: string, category: string, dateValue: string) => {
+    const iso = dateValue ? new Date(`${dateValue}T00:00:00`).toISOString() : null;
+    await setPeriodStart(department, category, iso);
+    setEditingSinceKey(null);
     await load();
   }, [load]);
 
@@ -366,9 +379,41 @@ export default function PlanningBoard({ open, onClose }: Props) {
                           <span style={{ fontSize: '1.15rem', fontWeight: 700, color: isOver ? COLOR_OVER : isExact ? COLOR_EXACT : 'var(--text)' }}>
                             {orderedQty} ordered
                           </span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                            ({sinceLabel(plan?.period_start)})
-                          </span>
+                          {editingSinceKey === k ? (
+                            <div className="flex items-center gap-1.5 mt-1" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="date"
+                                autoFocus
+                                defaultValue={toDateInputValue(plan?.period_start)}
+                                onBlur={e => handleSinceChange(selectedDept, cat, e.target.value)}
+                                onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                style={{
+                                  fontSize: '0.65rem', padding: '3px 6px', borderRadius: 6,
+                                  border: '1px solid var(--border-mid)', fontFamily: 'DM Mono, monospace',
+                                  color: 'var(--text)', outline: 'none',
+                                }}
+                              />
+                              <button
+                                title="Clear — count all-time"
+                                onClick={() => handleSinceChange(selectedDept, cat, '')}
+                                style={{ fontSize: '0.6rem', color: 'var(--red)', background: 'none', border: 'none', cursor: 'pointer' }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setEditingSinceKey(k)}
+                              title="Click to change the counting start date"
+                              style={{
+                                fontSize: '0.68rem', color: 'var(--text-muted)', background: 'none',
+                                border: 'none', cursor: 'pointer', textDecoration: 'underline dotted',
+                                textUnderlineOffset: 2,
+                              }}
+                            >
+                              ({sinceLabel(plan?.period_start)})
+                            </button>
+                          )}
                         </div>
 
                         {!isOver && !isExact && (

@@ -448,7 +448,7 @@ export type OrderPlan = {
   department: string;
   category: string;
   planned_qty: number;
-  period_start: string;
+  period_start: string | null;
 };
 
 export const emptyEntry = (): Omit<ShoeEntry, 'id' | 'created_at'> => ({

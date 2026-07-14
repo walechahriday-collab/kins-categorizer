@@ -63,7 +63,7 @@ create table if not exists public.order_plans (
   department   text not null,
   category     text not null,
   planned_qty  integer not null default 0,
-  period_start timestamptz not null default now(),
+  period_start timestamptz,
   created_at   timestamptz not null default now(),
   unique (department, category)
 );

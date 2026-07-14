@@ -296,14 +296,18 @@ export async function upsertPlannedQty(department: string, category: string, pla
     .upsert({ department, category, planned_qty: plannedQty }, { onConflict: 'department,category' });
 }
 
-export async function resetOrderPlan(department: string, category: string): Promise<void> {
+export async function setPeriodStart(department: string, category: string, periodStart: string | null): Promise<void> {
   if (!SUPABASE_CONFIGURED) return;
   await supabase
     .from('order_plans')
     .upsert(
-      { department, category, period_start: new Date().toISOString() },
+      { department, category, period_start: periodStart },
       { onConflict: 'department,category', ignoreDuplicates: false }
     );
+}
+
+export async function resetOrderPlan(department: string, category: string): Promise<void> {
+  await setPeriodStart(department, category, new Date().toISOString());
 }
 
 export async function resetAllOrderPlans(): Promise<void> {
