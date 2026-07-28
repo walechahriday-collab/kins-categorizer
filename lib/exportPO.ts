@@ -126,6 +126,16 @@ export async function exportToPO(entries: ShoeEntry[]) {
     day: '2-digit', month: 'short', year: 'numeric',
   }).replace(/ /g, '-');
 
+  const deliveryDays = Number(entries[0]?.delivery_date || 0);
+  let lastDeliveryStr = '';
+  if (deliveryDays > 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + deliveryDays);
+    lastDeliveryStr = d.toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    }).replace(/ /g, '-');
+  }
+
   // ── ROW 1: Company name | Last Delivery Date | Purchase Order ──
   sheet.getRow(1).height = 30;
 
@@ -137,7 +147,7 @@ export async function exportToPO(entries: ShoeEntry[]) {
   sheet.mergeCells('A1:C1');
 
   const lddCell = sheet.getCell('D1');
-  lddCell.value = 'Last Delivery Date -';
+  lddCell.value = lastDeliveryStr ? `Last Delivery Date - ${lastDeliveryStr}` : 'Last Delivery Date -';
   lddCell.font = { name: CAL, bold: true, color: { argb: 'FFc41515' }, size: 18 };
   lddCell.alignment = { horizontal: 'center', vertical: 'middle' };
   lddCell.border = bd('thin');
@@ -161,7 +171,7 @@ export async function exportToPO(entries: ShoeEntry[]) {
   sheet.mergeCells('A2:C2');
 
   const logoCell = sheet.getCell('D2');
-  logoCell.value = 'Logo -';
+  logoCell.value = entries[0]?.logo ? `Logo - ${entries[0].logo}` : 'Logo -';
   logoCell.fill = solidFill('FF000000');
   logoCell.font = { name: CAL, bold: true, color: { argb: 'FFFFFF00' }, size: 36 };
   logoCell.alignment = { horizontal: 'center', vertical: 'middle' };

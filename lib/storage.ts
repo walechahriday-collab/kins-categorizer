@@ -111,6 +111,7 @@ function migrateEntry(e: Record<string, string>): ShoeEntry {
     sketch_data: e.sketch_data || '',
     logo: e.logo || '',
     supplier_name: e.supplier_name || '',
+    delivery_date: e.delivery_date || '',
   } as ShoeEntry;
 }
 

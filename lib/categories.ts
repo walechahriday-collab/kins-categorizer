@@ -180,6 +180,8 @@ export const SEASONS = ['Summer', 'Winter'] as const;
 
 export const LOGO_OPTIONS = ['Ket Importa and Kins', 'Kins', 'Ket Importa'] as const;
 
+export const DELIVERY_DATE_OPTIONS = ['30', '45', '60', '90'] as const;
+
 export const SUPPLIER_NAMES = [
   'A JAIN AND CO',
   'AAKASH AND CO.',
@@ -441,6 +443,7 @@ export type ShoeEntry = {
   sketch_data: string;
   logo: string;
   supplier_name: string;
+  delivery_date: string;
 };
 
 export type OrderPlan = {
@@ -471,5 +474,5 @@ export const emptyEntry = (): Omit<ShoeEntry, 'id' | 'created_at'> => ({
   qty_40: '', qty_41: '', qty_42: '', qty_43: '', qty_44: '',
   qty_45: '', qty_46: '', qty_47: '',
   color_variants: JSON.stringify([emptyVariant()]),
-  notes: '', sketch_data: '', logo: '', supplier_name: '',
+  notes: '', sketch_data: '', logo: '', supplier_name: '', delivery_date: '',
 });

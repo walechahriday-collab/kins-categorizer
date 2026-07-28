@@ -23,7 +23,7 @@ async function toDataURL(url: string): Promise<string> {
   } catch { return ''; }
 }
 
-export async function exportToPDF(entries: ShoeEntry[]) {
+async function buildPODoc(entries: ShoeEntry[]) {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -53,6 +53,13 @@ export async function exportToPDF(entries: ShoeEntry[]) {
   doc.text('A-35, RAMA ROAD NAJAFGARH ROAD IND.', M, 17);
   doc.text('AREA, NEW DELHI - 110015', M, 21);
 
+  if (entries[0]?.logo) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...RED);
+    doc.text(`Logo - ${entries[0].logo}`, M, 25);
+  }
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(20);
   doc.setTextColor(...BLUE_MID);
@@ -66,8 +73,20 @@ export async function exportToPDF(entries: ShoeEntry[]) {
   doc.setTextColor(...BLUE_MID);
   doc.text(`Date - ${dateStr}`, pageW - M, 20, { align: 'right' });
 
+  const deliveryDays = Number(entries[0]?.delivery_date || 0);
+  if (deliveryDays > 0) {
+    const d = new Date();
+    d.setDate(d.getDate() + deliveryDays);
+    const lastDeliveryStr = d.toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+    }).replace(/ /g, '-');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...RED);
+    doc.text(`Last Delivery Date - ${lastDeliveryStr}`, pageW - M, 25, { align: 'right' });
+  }
+
   // ── SUPPLIER & SHIP TO ──
-  const infoY = 25;
+  const infoY = 29;
   doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.3);
   doc.rect(M, infoY, 90, 6);
@@ -194,5 +213,16 @@ export async function exportToPDF(entries: ShoeEntry[]) {
     },
   });
 
+  return doc;
+}
+
+export async function exportToPDF(entries: ShoeEntry[]) {
+  const doc = await buildPODoc(entries);
   doc.save(`Sample_PO_${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+export async function buildPOPdfFile(entries: ShoeEntry[]): Promise<File> {
+  const doc = await buildPODoc(entries);
+  const blob = doc.output('blob');
+  return new File([blob], `Sample_PO_${new Date().toISOString().slice(0, 10)}.pdf`, { type: 'application/pdf' });
 }

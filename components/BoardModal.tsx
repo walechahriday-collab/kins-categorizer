@@ -6,6 +6,7 @@ import {
   DEPARTMENTS, DEPT_CATEGORIES, SUB_CATEGORIES, COLORS,
   DEPT_HEELS, DEPT_SECTIONS, DEPT_SIZES, SEASONS, LOGO_OPTIONS,
   KIDS_SIZES, KIDS_SIZE_RANGES, SUPPLIER_NAMES, SUPPLIER_CODES,
+  DELIVERY_DATE_OPTIONS,
   ColorVariant, emptyVariant,
   ShoeEntry, emptyEntry,
 } from '@/lib/categories';
@@ -34,6 +35,10 @@ const SHARED_COLS: ColDef[] = [
   { key: 'pur_price',     label: 'Pur Price',      type: 'text',     width: 95,  isShared: true },
   { key: 'logo',          label: 'Logo',           type: 'select',   width: 150, options: LOGO_OPTIONS, isShared: true },
   { key: 'supplier_name', label: 'Supplier',       type: 'combobox', width: 200, options: SUPPLIER_NAMES, isShared: true },
+];
+
+const TRAILING_COLS: ColDef[] = [
+  { key: 'delivery_date', label: 'Delivery Date', type: 'select', width: 130, options: DELIVERY_DATE_OPTIONS, isShared: true },
 ];
 
 const VARIANT_ACCENT = [
@@ -300,7 +305,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
     ];
   }, [activeSizes, entry.department]);
 
-  const allCols = useMemo(() => [...sharedCols, ...variantCols], [sharedCols, variantCols]);
+  const allCols = useMemo(() => [...sharedCols, ...variantCols, ...TRAILING_COLS], [sharedCols, variantCols]);
   const totalWidth = useMemo(() => allCols.reduce((s, c) => s + c.width, 0) + 36, [allCols]);
 
   const getDynamicOptions = useCallback((key: string): readonly string[] => {
@@ -623,6 +628,15 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
                       fontFamily: 'DM Mono, monospace',
                     }}>{col.label}</th>
                   ))}
+                  {TRAILING_COLS.map(col => (
+                    <th key={col.key} style={{
+                      position: 'sticky', top: 0, zIndex: 10, padding: '7px 6px', textAlign: 'left',
+                      background: 'var(--gold-faint2)', color: 'var(--gold)', border: '1px solid var(--border)',
+                      fontSize: '0.56rem', fontWeight: 700, letterSpacing: '0.07em',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      fontFamily: 'DM Mono, monospace',
+                    }}>{col.label}</th>
+                  ))}
                   <th style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--gold-faint2)', border: '1px solid var(--border)', width: 36 }} />
                 </tr>
               </thead>
@@ -653,6 +667,18 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
                           onFocus={e => { (e.currentTarget as HTMLElement).style.outline = `2px solid ${accent}`; (e.currentTarget as HTMLElement).style.outlineOffset = '-2px'; }}
                           onBlur={e => { (e.currentTarget as HTMLElement).style.outline = ''; }}>
                           {renderVariantCell(col, n, accent)}
+                        </td>
+                      ))}
+
+                      {/* Trailing shared cells — only in row 0, rowSpan covers all variant rows */}
+                      {n === 0 && TRAILING_COLS.map(col => (
+                        <td key={col.key} rowSpan={variants.length}
+                          style={{ height: ROW_H * variants.length, padding: 0,
+                            border: '1px solid var(--border)', background: '#ffffff',
+                            verticalAlign: 'top', position: 'relative' }}
+                          onFocus={e => { (e.currentTarget as HTMLElement).style.outline = '2px solid var(--red)'; (e.currentTarget as HTMLElement).style.outlineOffset = '-2px'; }}
+                          onBlur={e => { (e.currentTarget as HTMLElement).style.outline = ''; }}>
+                          {renderSharedCell(col)}
                         </td>
                       ))}
 
@@ -720,7 +746,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
               ))}
             </div>
 
-            {isEdit && (
+            {isEdit && notesMode === 'text' && (
               <div className="flex items-center gap-1" style={{ padding: '4px 8px', borderRadius: 6,
                 background: 'rgba(196,21,21,0.06)', border: '1px solid rgba(196,21,21,0.2)' }}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
@@ -731,7 +757,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
               </div>
             )}
 
-            {notesMode === 'sketch' && !isEdit && (
+            {notesMode === 'sketch' && (
               <>
                 <button onClick={notesUndo}
                   className="flex items-center gap-1 rounded-lg transition-colors"
@@ -798,12 +824,10 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
             <canvas ref={notesCanvasRef}
               style={{ display: notesMode === 'sketch' ? 'block' : 'none',
                 width: '100%', height: '100%',
-                cursor: isEdit ? 'default' : (notesEraser ? 'cell' : 'crosshair'),
+                cursor: notesEraser ? 'cell' : 'crosshair',
                 touchAction: 'none',
                 background: 'white', borderRadius: 8,
-                border: '1.5px solid var(--border-mid)', boxSizing: 'border-box',
-                pointerEvents: isEdit ? 'none' : undefined,
-                opacity: isEdit ? 0.85 : 1 }}
+                border: '1.5px solid var(--border-mid)', boxSizing: 'border-box' }}
               onPointerDown={notesOnDown} onPointerMove={notesOnMove}
               onPointerUp={notesOnUp} onPointerLeave={notesOnUp} />
           </div>
