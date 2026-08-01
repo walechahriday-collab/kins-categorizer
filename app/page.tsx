@@ -16,6 +16,7 @@ import {
 import { exportToExcelV2 } from '@/lib/exportExcelV2';
 import { exportToPO } from '@/lib/exportPO';
 import { buildPOPdfFile } from '@/lib/exportPDF';
+import { saveAs } from 'file-saver';
 
 function daysUntilPurge(deletedAt: string | null | undefined): number {
   if (!deletedAt) return 0;
@@ -139,17 +140,25 @@ export default function Home() {
     setSharingWA(true);
     try {
       const file = await buildPOPdfFile(list);
-      if (typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: 'Purchase Order', text: 'Purchase Order' });
-      } else {
-        const url = URL.createObjectURL(file);
-        const a = document.createElement('a');
-        a.href = url; a.download = file.name; a.click();
-        URL.revokeObjectURL(url);
-        window.open(`https://wa.me/?text=${encodeURIComponent('PO PDF downloaded — attach it here to send on WhatsApp.')}`, '_blank');
+
+      let canShareFiles = false;
+      try { canShareFiles = !!(typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })); }
+      catch { canShareFiles = false; } // some Android browsers throw here instead of returning false
+
+      if (canShareFiles) {
+        try {
+          await navigator.share({ files: [file], title: 'Purchase Order', text: 'Purchase Order' });
+          return; // shared successfully
+        } catch (shareErr) {
+          if (shareErr instanceof Error && shareErr.name === 'AbortError') return; // user cancelled — not a failure
+          // Any other share error (e.g. "access denied" on some Android browsers) —
+          // fall through to the download fallback below instead of dead-ending.
+        }
       }
+
+      saveAs(file, file.name);
+      window.open(`https://wa.me/?text=${encodeURIComponent('PO PDF downloaded — attach it here to send on WhatsApp.')}`, '_blank');
     } catch (e) {
-      if (e instanceof Error && e.name === 'AbortError') return; // user cancelled the share sheet
       alert('WhatsApp share failed: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setSharingWA(false);
