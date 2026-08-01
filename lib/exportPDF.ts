@@ -128,15 +128,15 @@ async function buildPODoc(entries: ShoeEntry[]) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const row: any[] = [];
 
-      if (vi === 0) {
-        row.push({ content: entry.article_no || '', rowSpan: variants.length, styles: { valign: 'middle', halign: 'center', fontStyle: 'bold' } });
-        row.push({ content: '', rowSpan: variants.length, styles: { valign: 'middle', halign: 'center' } });
-        row.push({ content: entry.pur_price || '', rowSpan: variants.length, styles: { valign: 'middle', halign: 'center' } });
-        row.push({ content: '', rowSpan: variants.length, styles: { fillColor: YELLOW, valign: 'middle' } });
-        rowImages.push(entry.id ? (imageMap[entry.id] || null) : null);
-      } else {
-        rowImages.push(null);
-      }
+      // Article/Image/Price/Remarks are repeated on every color row (rather than
+      // merged via rowSpan) so each row is self-contained — jspdf-autotable can
+      // drop or mis-render rowSpan groups that land across a page break, which
+      // was silently losing entries from multi-page POs.
+      row.push({ content: entry.article_no || '', styles: { valign: 'middle', halign: 'center', fontStyle: 'bold' } });
+      row.push({ content: '', styles: { valign: 'middle', halign: 'center' } });
+      row.push({ content: entry.pur_price || '', styles: { valign: 'middle', halign: 'center' } });
+      row.push({ content: '', styles: { fillColor: YELLOW, valign: 'middle' } });
+      rowImages.push(entry.id ? (imageMap[entry.id] || null) : null);
 
       row.push({ content: v.color || '', styles: { halign: 'center', valign: 'middle' } });
       SIZES.forEach(n => {
@@ -177,6 +177,7 @@ async function buildPODoc(entries: ShoeEntry[]) {
     ],
     body,
     theme: 'grid',
+    rowPageBreak: 'avoid',
     headStyles: { fillColor: BLUE_DARK, textColor: WHITE, fontStyle: 'bold', fontSize: 8, halign: 'center', cellPadding: 2 },
     columnStyles: {
       0:  { cellWidth: 22 },
