@@ -23,7 +23,12 @@ async function toDataURL(url: string): Promise<string> {
   } catch { return ''; }
 }
 
-async function buildPODoc(entries: ShoeEntry[]) {
+export type PDFShareOptions = {
+  logoOverride?: string;
+  setQtyOverride?: number;
+};
+
+async function buildPODoc(entries: ShoeEntry[], options?: PDFShareOptions) {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
     import('jspdf-autotable'),
@@ -53,11 +58,12 @@ async function buildPODoc(entries: ShoeEntry[]) {
   doc.text('A-35, RAMA ROAD NAJAFGARH ROAD IND.', M, 17);
   doc.text('AREA, NEW DELHI - 110015', M, 21);
 
-  if (entries[0]?.logo) {
+  const logoText = options?.logoOverride || entries[0]?.logo || '';
+  if (logoText) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...RED);
-    doc.text(`Logo - ${entries[0].logo}`, M, 25);
+    doc.text(`Logo - ${logoText}`, M, 25);
   }
 
   doc.setFont('helvetica', 'bold');
@@ -120,7 +126,9 @@ async function buildPODoc(entries: ShoeEntry[]) {
     for (let vi = 0; vi < variants.length; vi++) {
       const v = variants[vi];
       const totalQty = SIZES.reduce((s, n) => s + (Number(v[`qty_${n}`] || 0)), 0);
-      const setQty = Number(v.set_qty || 0);
+      const setQty = options?.setQtyOverride && options.setQtyOverride > 0
+        ? options.setQtyOverride
+        : Number(v.set_qty || 0);
       const totalPair = totalQty * setQty;
       grandTotalSets += setQty;
       grandTotalPairs += totalPair;
@@ -217,13 +225,13 @@ async function buildPODoc(entries: ShoeEntry[]) {
   return doc;
 }
 
-export async function exportToPDF(entries: ShoeEntry[]) {
-  const doc = await buildPODoc(entries);
+export async function exportToPDF(entries: ShoeEntry[], options?: PDFShareOptions) {
+  const doc = await buildPODoc(entries, options);
   doc.save(`Sample_PO_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
-export async function buildPOPdfFile(entries: ShoeEntry[]): Promise<File> {
-  const doc = await buildPODoc(entries);
+export async function buildPOPdfFile(entries: ShoeEntry[], options?: PDFShareOptions): Promise<File> {
+  const doc = await buildPODoc(entries, options);
   const blob = doc.output('blob');
   return new File([blob], `Sample_PO_${new Date().toISOString().slice(0, 10)}.pdf`, { type: 'application/pdf' });
 }

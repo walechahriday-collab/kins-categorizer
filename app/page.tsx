@@ -8,14 +8,14 @@ import BoardModal from '@/components/BoardModal';
 import EntriesList from '@/components/EntriesList';
 import PinGate from '@/components/PinGate';
 import PlanningBoard from '@/components/PlanningBoard';
-import { ShoeEntry, SUPPLIER_NAMES } from '@/lib/categories';
+import { ShoeEntry, SUPPLIER_NAMES, LOGO_OPTIONS } from '@/lib/categories';
 import {
   fetchEntries, fetchTrashedEntries, deleteEntry, restoreEntry,
   permanentlyDeleteEntry, clearAllEntries, purgeOldTrash,
 } from '@/lib/storage';
 import { exportToExcelV2 } from '@/lib/exportExcelV2';
 import { exportToPO } from '@/lib/exportPO';
-import { buildPOPdfFile } from '@/lib/exportPDF';
+import { buildPOPdfFile, PDFShareOptions } from '@/lib/exportPDF';
 import { saveAs } from 'file-saver';
 
 function daysUntilPurge(deletedAt: string | null | undefined): number {
@@ -35,6 +35,10 @@ export default function Home() {
   const [refreshing, setRefreshing] = useState(false);
   const [exportingPO, setExportingPO] = useState(false);
   const [sharingWA, setSharingWA] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareList, setShareList] = useState<ShoeEntry[]>([]);
+  const [shareLogo, setShareLogo] = useState('');
+  const [shareSetQty, setShareSetQty] = useState('');
   const [trashOpen, setTrashOpen] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -132,14 +136,25 @@ export default function Home() {
     setEntries((prev) => prev.map((e) => e.id === updated.id ? updated : e));
   };
 
-  const handleShareWhatsApp = async (list: ShoeEntry[]) => {
+  const openShareModal = (list: ShoeEntry[]) => {
+    if (list.length > 100) {
+      alert(`Too many entries for PO (${list.length}). Select 100 or fewer at a time.`);
+      return;
+    }
+    setShareList(list);
+    setShareLogo('');
+    setShareSetQty('');
+    setShareModalOpen(true);
+  };
+
+  const handleShareWhatsApp = async (list: ShoeEntry[], options?: PDFShareOptions) => {
     if (list.length > 100) {
       alert(`Too many entries for PO (${list.length}). Select 100 or fewer at a time.`);
       return;
     }
     setSharingWA(true);
     try {
-      const file = await buildPOPdfFile(list);
+      const file = await buildPOPdfFile(list, options);
 
       let canShareFiles = false;
       try { canShareFiles = !!(typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] })); }
@@ -401,7 +416,7 @@ export default function Home() {
                       disabled={sharingWA}
                       onClick={() => {
                         const selected = entries.filter(e => e.id && selectedIds.has(e.id));
-                        handleShareWhatsApp(selected);
+                        openShareModal(selected);
                       }}
                       className="btn btn-outline"
                       style={{ padding: '6px 12px', color: '#25D366', borderColor: 'rgba(37,211,102,0.4)', opacity: sharingWA ? 0.6 : 1 }}
@@ -469,7 +484,7 @@ export default function Home() {
                         alert(`Too many entries for PO (${entries.length}). Use SELECT mode to pick entries for a specific supplier — POs are per order, not your full catalogue.`);
                         return;
                       }
-                      handleShareWhatsApp(entries);
+                      openShareModal(entries);
                     }}
                     className="btn btn-outline"
                     style={{ padding: '6px 12px', color: '#25D366', borderColor: 'rgba(37,211,102,0.4)', opacity: sharingWA ? 0.6 : 1 }}
@@ -661,6 +676,57 @@ export default function Home() {
         initialEntry={editEntry}
         stickySupplier={stickySupplier}
       />
+
+      {/* ── Share options modal (Logo / Set Qty overrides, PDF-only — never touches entries) ── */}
+      {shareModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(26,19,16,0.55)', backdropFilter: 'blur(6px)' }}
+          onClick={e => { if (e.target === e.currentTarget) setShareModalOpen(false); }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-mid)', borderRadius: 16,
+            padding: 24, width: 340, maxWidth: '90vw', boxShadow: '0 8px 40px rgba(26,19,16,0.18)' }}>
+            <p className="font-display text-lg italic font-bold" style={{ color: 'var(--red)' }}>Share Options</p>
+            <p style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.06em', marginTop: 2, marginBottom: 18 }}>
+              {shareList.length} {shareList.length === 1 ? 'ENTRY' : 'ENTRIES'} SELECTED — applies to this PDF only, your saved entries stay unchanged
+            </p>
+
+            <label style={{ fontSize: '0.6rem', color: 'var(--text-mid)', fontWeight: 700, letterSpacing: '0.08em' }}>LOGO</label>
+            <select value={shareLogo} onChange={e => setShareLogo(e.target.value)}
+              style={{ width: '100%', marginTop: 4, marginBottom: 16, padding: '8px 10px', borderRadius: 8,
+                border: '1px solid var(--border-mid)', background: 'var(--bg)', fontSize: '0.72rem',
+                fontFamily: 'DM Mono, monospace', color: 'var(--text)', boxSizing: 'border-box' }}>
+              <option value="">— use each entry&apos;s saved logo —</option>
+              {LOGO_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+
+            <label style={{ fontSize: '0.6rem', color: 'var(--text-mid)', fontWeight: 700, letterSpacing: '0.08em' }}>SET QTY</label>
+            <input type="number" min="0" value={shareSetQty} onChange={e => setShareSetQty(e.target.value)}
+              placeholder="use each entry's saved set qty"
+              style={{ width: '100%', marginTop: 4, marginBottom: 22, padding: '8px 10px', borderRadius: 8,
+                border: '1px solid var(--border-mid)', background: 'var(--bg)', fontSize: '0.72rem',
+                fontFamily: 'DM Mono, monospace', color: 'var(--text)', boxSizing: 'border-box' }} />
+
+            <div className="flex gap-2">
+              <button onClick={() => setShareModalOpen(false)} className="btn btn-outline" style={{ flex: 1, padding: '8px 12px' }}>
+                CANCEL
+              </button>
+              <button
+                disabled={sharingWA}
+                onClick={() => {
+                  setShareModalOpen(false);
+                  handleShareWhatsApp(shareList, {
+                    logoOverride: shareLogo || undefined,
+                    setQtyOverride: shareSetQty ? Number(shareSetQty) : undefined,
+                  });
+                }}
+                className="btn"
+                style={{ flex: 1, padding: '8px 12px', background: '#25D366', color: '#fff', border: 'none', opacity: sharingWA ? 0.6 : 1 }}
+              >
+                SHARE
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Planning board ── */}
       <PlanningBoard open={planningOpen} onClose={() => setPlanningOpen(false)} />
