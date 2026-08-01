@@ -441,6 +441,7 @@ export type ShoeEntry = {
   color_variants: string; // JSON-stringified ColorVariant[]
   notes: string;
   sketch_data: string;
+  sheet_sketch_data: string; // markup drawn directly over the spreadsheet (TYPE/SKETCH toggle)
   logo: string;
   supplier_name: string;
   delivery_date: string;
@@ -474,5 +475,5 @@ export const emptyEntry = (): Omit<ShoeEntry, 'id' | 'created_at'> => ({
   qty_40: '', qty_41: '', qty_42: '', qty_43: '', qty_44: '',
   qty_45: '', qty_46: '', qty_47: '',
   color_variants: JSON.stringify([emptyVariant()]),
-  notes: '', sketch_data: '', logo: '', supplier_name: '', delivery_date: '',
+  notes: '', sketch_data: '', sheet_sketch_data: '', logo: '', supplier_name: '', delivery_date: '',
 });

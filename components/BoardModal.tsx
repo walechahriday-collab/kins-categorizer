@@ -83,6 +83,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
   const notesCanvasSized = useRef(false);
   const pendingSketchData = useRef('');
   const originalSketchRef = useRef('');
+  const originalSheetSketchRef = useRef('');
 
   const initNotesCanvas = useCallback(() => {
     const c = notesCanvasRef.current;
@@ -198,6 +199,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
       notesHistory.current = [];
       originalSketchRef.current = initialEntry?.sketch_data || '';
       pendingSketchData.current = initialEntry?.sketch_data || '';
+      originalSheetSketchRef.current = initialEntry?.sheet_sketch_data || '';
       if (notesCanvasRef.current) {
         const ctx = notesCanvasRef.current.getContext('2d');
         if (ctx) ctx.clearRect(0, 0, notesCanvasRef.current.width, notesCanvasRef.current.height);
@@ -393,6 +395,12 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
         // User never opened the sketch tab — preserve original sketch unchanged
         sketchData = originalSketchRef.current;
       }
+      // Spreadsheet-overlay sketch (TYPE/SKETCH toggle) — export only if the
+      // user actually drew/cleared something this session, otherwise keep
+      // whatever was already saved.
+      const sheetSketchData = sketchRef.current?.hasChanges()
+        ? await (sketchRef.current?.exportPaths() ?? Promise.resolve(''))
+        : originalSheetSketchRef.current;
       // Upload voice memo if recorded in modal
       let voiceNoteUrl = (entry as unknown as Record<string, string>).voice_note_url || '';
       if (voiceBlob) {
@@ -405,6 +413,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
       const payload = {
         ...entry, color: v0.color, size_set: v0.size_set, set_qty: v0.set_qty,
         ...v0qty, color_variants: JSON.stringify(variants), sketch_data: sketchData,
+        sheet_sketch_data: sheetSketchData,
         voice_note_url: voiceNoteUrl,
       };
       if (isEdit && initialEntry?.id) await updateEntry(initialEntry.id, payload);
@@ -601,7 +610,8 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
 
         {/* Spreadsheet */}
         <div className="flex-shrink-0 relative" style={{ overflow: 'hidden', maxHeight: '52vh' }}>
-          <SketchCanvas ref={sketchRef} active={sketchMode} color={sketchColor} strokeWidth={3} />
+          <SketchCanvas ref={sketchRef} active={sketchMode} color={sketchColor} strokeWidth={3}
+            initialData={initialEntry?.sheet_sketch_data || ''} />
           <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '52vh', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
             <table style={{ minWidth: totalWidth, tableLayout: 'fixed', borderCollapse: 'collapse' }}>
               <colgroup>

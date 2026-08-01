@@ -109,6 +109,7 @@ function migrateEntry(e: Record<string, string>): ShoeEntry {
     color_variants,
     notes: e.notes || '',
     sketch_data: e.sketch_data || '',
+    sheet_sketch_data: e.sheet_sketch_data || '',
     logo: e.logo || '',
     supplier_name: e.supplier_name || '',
     delivery_date: e.delivery_date || '',
