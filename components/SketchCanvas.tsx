@@ -39,29 +39,39 @@ const SketchCanvas = forwardRef<SketchHandle, Props>(
       hasChanges: () => changed.current,
     }));
 
-    /* Size canvas to its CSS dimensions the first time it becomes active —
-       only once per mount, so toggling TYPE/SKETCH back and forth doesn't
-       wipe whatever's already been drawn. Loads any previously saved
-       drawing (initialData) once sizing is done. */
+    /* Size the canvas once on mount — it's always rendered (visible in both
+       TYPE and SKETCH mode) so any existing markup shows immediately, not
+       just after switching into SKETCH mode. Retries briefly if the layout
+       isn't measurable yet. Loads any previously saved drawing (initialData)
+       once sizing succeeds. */
     useEffect(() => {
-      if (!active || sized.current) return;
-      const c = canvasRef.current;
-      if (!c) return;
-      const dpr = typeof devicePixelRatio !== 'undefined' ? devicePixelRatio : 1;
-      const r = c.getBoundingClientRect();
-      if (r.width === 0 || r.height === 0) return;
-      c.width  = r.width  * dpr;
-      c.height = r.height * dpr;
-      const ctx = c.getContext('2d');
-      if (ctx) ctx.scale(dpr, dpr);
-      sized.current = true;
-      const dataUrl = initialDataRef.current;
-      if (ctx && dataUrl) {
-        const img = new Image();
-        img.onload = () => ctx.drawImage(img, 0, 0, r.width, r.height);
-        img.src = dataUrl;
-      }
-    }, [active]);
+      if (sized.current) return;
+      let cancelled = false;
+      const trySize = () => {
+        if (cancelled || sized.current) return;
+        const c = canvasRef.current;
+        if (!c) return;
+        const dpr = typeof devicePixelRatio !== 'undefined' ? devicePixelRatio : 1;
+        const r = c.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) {
+          setTimeout(trySize, 50);
+          return;
+        }
+        c.width  = r.width  * dpr;
+        c.height = r.height * dpr;
+        const ctx = c.getContext('2d');
+        if (ctx) ctx.scale(dpr, dpr);
+        sized.current = true;
+        const dataUrl = initialDataRef.current;
+        if (ctx && dataUrl) {
+          const img = new Image();
+          img.onload = () => ctx.drawImage(img, 0, 0, r.width, r.height);
+          img.src = dataUrl;
+        }
+      };
+      trySize();
+      return () => { cancelled = true; };
+    }, []);
 
     /* Pointer helpers */
     const pos = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -101,17 +111,18 @@ const SketchCanvas = forwardRef<SketchHandle, Props>(
         ref={canvasRef}
         className="absolute inset-0 z-20"
         style={{
-          display: active ? 'block' : 'none',
+          display: 'block',
           width: '100%',
           height: '100%',
-          cursor: 'crosshair',
+          cursor: active ? 'crosshair' : 'default',
+          pointerEvents: active ? 'auto' : 'none',
           touchAction: 'none',
           background: 'transparent',
         }}
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        onPointerLeave={onUp}
+        onPointerDown={active ? onDown : undefined}
+        onPointerMove={active ? onMove : undefined}
+        onPointerUp={active ? onUp : undefined}
+        onPointerLeave={active ? onUp : undefined}
       />
     );
   }
