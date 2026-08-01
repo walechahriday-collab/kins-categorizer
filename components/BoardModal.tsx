@@ -598,6 +598,19 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
                 ))}
               </div>
             )}
+            {sketchMode && (
+              <button onClick={() => sketchRef.current?.clear()}
+                className="flex items-center gap-1 rounded-lg transition-colors"
+                style={{ padding: '5px 10px', fontSize: '0.6rem', fontWeight: 600,
+                  background: 'rgba(26,19,16,0.06)', color: 'var(--text-mid)',
+                  border: '1px solid var(--border-mid)' }}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+                  <path d="M20 20H7L3 16l10-10 7 7-1.5 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="m6.5 17.5 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+                CLEAR SKETCH
+              </button>
+            )}
             <button onClick={() => { setEntry(emptyEntry()); setVariants([emptyVariant()]); sketchRef.current?.clear(); }}
               className="btn btn-outline" style={{ padding: '6px 12px', fontSize: '0.6rem' }}>RESET</button>
             <button onClick={onClose} style={{ color: 'var(--text-muted)', padding: 4 }}>
