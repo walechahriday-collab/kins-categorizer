@@ -61,7 +61,11 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
   const [saved, setSaved] = useState(false);
   const sketchRef = useRef<SketchHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
   const comboPrevValueRef = useRef<Record<string, string>>({});
+  const [openComboKey, setOpenComboKey] = useState<string | null>(null);
+  const [comboRect, setComboRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   // Voice memo (saved with entry)
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
@@ -194,6 +198,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
       if (voiceBlobUrlRef.current) { URL.revokeObjectURL(voiceBlobUrlRef.current); voiceBlobUrlRef.current = ''; }
       setVoiceBlob(null); setVoiceRecording(false); setVoicePlaying(false);
       setSketchMode(false); setSaved(false);
+      setOpenComboKey(null); setComboRect(null); setPhotoMenuOpen(false);
       setNotesMode('text'); setNotesEraser(false);
       notesCanvasSized.current = false;
       notesHistory.current = [];
@@ -316,6 +321,18 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
     if (key === 'section')  return entry.department ? (DEPT_SECTIONS[entry.department] ?? []) : [];
     return [];
   }, [entry.department]);
+
+  // Custom dropdown for combobox columns (Category/Supplier) — a real <datalist>
+  // is unreliable on many Android browsers, which don't show the suggestion
+  // popup at all. This renders our own filtered listbox instead.
+  const openComboOptions = useMemo((): readonly string[] => {
+    if (!openComboKey) return [];
+    const col = allCols.find(c => c.key === openComboKey);
+    if (!col) return [];
+    const opts = col.options ?? getDynamicOptions(openComboKey);
+    const val = ((entry as unknown) as Record<string, string>)[openComboKey] ?? '';
+    return val.trim() ? opts.filter(o => o.toLowerCase().includes(val.trim().toLowerCase())) : opts;
+  }, [openComboKey, entry, allCols, getDynamicOptions]);
 
   const variantTotal = useCallback((v: ColorVariant) => {
     return activeSizes.reduce((sum, s) => {
@@ -442,7 +459,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
         ? `${supplierCode}-${entry.article_no}`
         : supplierCode || (entry.article_no || '');
       return (
-        <div onClick={() => !sketchMode && fileInputRef.current?.click()}
+        <div onClick={() => !sketchMode && setPhotoMenuOpen(true)}
           style={{ width: '100%', height: '100%', cursor: sketchMode ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
             position: 'relative', background: val ? 'transparent' : 'var(--bg)' }}>
@@ -476,37 +493,32 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
     }
     if (col.type === 'combobox') {
       const val = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
-      const options = col.options ?? getDynamicOptions(col.key);
       const isLocked = col.key === 'category' && !entry.department;
-      const listId = `combo-${col.key}`;
       return (
-        <>
-          <input
-            type="text"
-            list={listId}
-            value={val}
-            onChange={e => set(col.key, e.target.value)}
-            onFocus={e => {
-              // Clear on focus so the datalist shows every option instead of
-              // being filtered down to just the value already typed in.
-              comboPrevValueRef.current[col.key] = val;
-              if (val) set(col.key, '');
-              e.target.select();
-            }}
-            onBlur={() => {
-              const current = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
-              if (!current.trim() && comboPrevValueRef.current[col.key]) {
-                set(col.key, comboPrevValueRef.current[col.key]);
-              }
-            }}
-            disabled={sketchMode || isLocked}
-            placeholder={isLocked ? '— pick dept —' : '[None]'}
-            style={{ ...baseInput, opacity: isLocked ? 0.4 : 1 }}
-          />
-          <datalist id={listId}>
-            {options.map(o => <option key={o} value={o} />)}
-          </datalist>
-        </>
+        <input
+          type="text"
+          value={val}
+          onChange={e => set(col.key, e.target.value)}
+          onFocus={e => {
+            // Clear on focus so the dropdown shows every option instead of
+            // being filtered down to just the value already typed in.
+            comboPrevValueRef.current[col.key] = val;
+            if (val) set(col.key, '');
+            const r = e.target.getBoundingClientRect();
+            setComboRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+            setOpenComboKey(col.key);
+          }}
+          onBlur={() => {
+            setOpenComboKey(prev => (prev === col.key ? null : prev));
+            const current = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
+            if (!current.trim() && comboPrevValueRef.current[col.key]) {
+              set(col.key, comboPrevValueRef.current[col.key]);
+            }
+          }}
+          disabled={sketchMode || isLocked}
+          placeholder={isLocked ? '— pick dept —' : '[None]'}
+          style={{ ...baseInput, opacity: isLocked ? 0.4 : 1 }}
+        />
       );
     }
     const val = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
@@ -557,6 +569,8 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
       style={{ background: 'rgba(26,19,16,0.55)', backdropFilter: 'blur(6px)' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoFile(f); e.target.value = ''; }} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoFile(f); e.target.value = ''; }} />
 
       <div className="slide-up w-full flex flex-col"
@@ -625,7 +639,8 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
         <div className="flex-shrink-0 relative" style={{ overflow: 'hidden', maxHeight: '52vh' }}>
           <SketchCanvas ref={sketchRef} active={sketchMode} color={sketchColor} strokeWidth={3}
             initialData={initialEntry?.sheet_sketch_data || ''} />
-          <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '52vh', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+          <div onScroll={() => setOpenComboKey(null)}
+            style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '52vh', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
             <table style={{ minWidth: totalWidth, tableLayout: 'fixed', borderCollapse: 'collapse' }}>
               <colgroup>
                 {allCols.map(col => <col key={col.key} style={{ width: col.width }} />)}
@@ -934,6 +949,56 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
           </div>
         </div>
       </div>
+
+      {/* Custom combobox dropdown (Category/Supplier) — datalist is unreliable on Android */}
+      {openComboKey && comboRect && (
+        <div
+          style={{
+            position: 'fixed', top: comboRect.top + comboRect.height, left: comboRect.left,
+            width: Math.max(comboRect.width, 180), maxHeight: 220, overflowY: 'auto',
+            background: '#fff', border: '1px solid var(--border-mid)', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(26,19,16,0.18)', zIndex: 1000,
+          }}
+        >
+          {openComboOptions.length === 0 && (
+            <div style={{ padding: '8px 10px', fontSize: '0.65rem', color: 'var(--text-muted)' }}>No matches</div>
+          )}
+          {openComboOptions.map(o => (
+            <button key={o}
+              onMouseDown={e => { e.preventDefault(); set(openComboKey, o); setOpenComboKey(null); }}
+              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px',
+                fontSize: '0.68rem', fontFamily: 'DM Mono, monospace', background: 'none', border: 'none',
+                borderBottom: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text)' }}>
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Photo source choice — Camera vs Gallery */}
+      {photoMenuOpen && (
+        <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 1000, background: 'rgba(26,19,16,0.4)' }}
+          onClick={() => setPhotoMenuOpen(false)}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: '#fff', borderRadius: 14, overflow: 'hidden', width: 220,
+              boxShadow: '0 8px 32px rgba(26,19,16,0.2)' }}>
+            <button onClick={() => { setPhotoMenuOpen(false); cameraInputRef.current?.click(); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '14px 16px',
+                fontSize: '0.72rem', fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none',
+                borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" stroke="var(--red)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><circle cx="12" cy="13" r="4" stroke="var(--red)" strokeWidth="1.5"/></svg>
+              TAKE PHOTO
+            </button>
+            <button onClick={() => { setPhotoMenuOpen(false); fileInputRef.current?.click(); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '14px 16px',
+                fontSize: '0.72rem', fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none',
+                cursor: 'pointer' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="18" height="18" rx="2" stroke="var(--gold)" strokeWidth="1.5"/><circle cx="8.5" cy="8.5" r="1.5" stroke="var(--gold)" strokeWidth="1.5"/><path d="m21 15-5-5L5 21" stroke="var(--gold)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              CHOOSE FROM GALLERY
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
