@@ -18,7 +18,7 @@ const SketchCanvas = dynamicImport(() => import('./SketchCanvas'), { ssr: false 
 
 interface ColDef {
   key: string; label: string; width: number;
-  type: 'photo' | 'select' | 'dynamic-select' | 'combobox' | 'text' | 'calc' | 'variant-select' | 'variant-text' | 'variant-calc';
+  type: 'photo' | 'select' | 'dynamic-select' | 'text' | 'calc' | 'variant-select' | 'variant-text' | 'variant-calc';
   options?: readonly string[];
   isShared?: boolean;
 }
@@ -26,7 +26,7 @@ interface ColDef {
 const SHARED_COLS: ColDef[] = [
   { key: 'picture',      label: 'Picture',     type: 'photo',          width: 100, isShared: true },
   { key: 'department',    label: 'Department',     type: 'select',   width: 155, options: DEPARTMENTS,  isShared: true },
-  { key: 'category',      label: 'Category',       type: 'combobox', width: 155,                        isShared: true },
+  { key: 'category',      label: 'Category',       type: 'dynamic-select', width: 155,                  isShared: true },
   { key: 'sub_category',  label: 'SubCategory',    type: 'select',   width: 125, options: SUB_CATEGORIES, isShared: true },
   { key: 'article_no',    label: 'ArticleNo',      type: 'text',     width: 115, isShared: true },
   { key: 'heels',         label: 'Heels',          type: 'dynamic-select', width: 140, isShared: true },
@@ -34,7 +34,7 @@ const SHARED_COLS: ColDef[] = [
   { key: 'season',        label: 'Season',         type: 'select',   width: 95,  options: SEASONS, isShared: true },
   { key: 'pur_price',     label: 'Pur Price',      type: 'text',     width: 95,  isShared: true },
   { key: 'logo',          label: 'Logo',           type: 'select',   width: 150, options: LOGO_OPTIONS, isShared: true },
-  { key: 'supplier_name', label: 'Supplier',       type: 'combobox', width: 200, options: SUPPLIER_NAMES, isShared: true },
+  { key: 'supplier_name', label: 'Supplier',       type: 'select',   width: 200, options: SUPPLIER_NAMES, isShared: true },
 ];
 
 const TRAILING_COLS: ColDef[] = [
@@ -63,9 +63,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [photoMenuOpen, setPhotoMenuOpen] = useState(false);
-  const comboPrevValueRef = useRef<Record<string, string>>({});
-  const [openComboKey, setOpenComboKey] = useState<string | null>(null);
-  const [comboRect, setComboRect] = useState<{ top: number; left: number; width: number; height: number } | null>(null);
 
   // Voice memo (saved with entry)
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
@@ -198,7 +195,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
       if (voiceBlobUrlRef.current) { URL.revokeObjectURL(voiceBlobUrlRef.current); voiceBlobUrlRef.current = ''; }
       setVoiceBlob(null); setVoiceRecording(false); setVoicePlaying(false);
       setSketchMode(false); setSaved(false);
-      setOpenComboKey(null); setComboRect(null); setPhotoMenuOpen(false);
+      setPhotoMenuOpen(false);
       setNotesMode('text'); setNotesEraser(false);
       notesCanvasSized.current = false;
       notesHistory.current = [];
@@ -321,18 +318,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
     if (key === 'section')  return entry.department ? (DEPT_SECTIONS[entry.department] ?? []) : [];
     return [];
   }, [entry.department]);
-
-  // Custom dropdown for combobox columns (Category/Supplier) — a real <datalist>
-  // is unreliable on many Android browsers, which don't show the suggestion
-  // popup at all. This renders our own filtered listbox instead.
-  const openComboOptions = useMemo((): readonly string[] => {
-    if (!openComboKey) return [];
-    const col = allCols.find(c => c.key === openComboKey);
-    if (!col) return [];
-    const opts = col.options ?? getDynamicOptions(openComboKey);
-    const val = ((entry as unknown) as Record<string, string>)[openComboKey] ?? '';
-    return val.trim() ? opts.filter(o => o.toLowerCase().includes(val.trim().toLowerCase())) : opts;
-  }, [openComboKey, entry, allCols, getDynamicOptions]);
 
   const variantTotal = useCallback((v: ColorVariant) => {
     return activeSizes.reduce((sum, s) => {
@@ -491,36 +476,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
         </select>
       );
     }
-    if (col.type === 'combobox') {
-      const val = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
-      const isLocked = col.key === 'category' && !entry.department;
-      return (
-        <input
-          type="text"
-          value={val}
-          onChange={e => set(col.key, e.target.value)}
-          onFocus={e => {
-            // Clear on focus so the dropdown shows every option instead of
-            // being filtered down to just the value already typed in.
-            comboPrevValueRef.current[col.key] = val;
-            if (val) set(col.key, '');
-            const r = e.target.getBoundingClientRect();
-            setComboRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-            setOpenComboKey(col.key);
-          }}
-          onBlur={() => {
-            setOpenComboKey(prev => (prev === col.key ? null : prev));
-            const current = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
-            if (!current.trim() && comboPrevValueRef.current[col.key]) {
-              set(col.key, comboPrevValueRef.current[col.key]);
-            }
-          }}
-          disabled={sketchMode || isLocked}
-          placeholder={isLocked ? '— pick dept —' : '[None]'}
-          style={{ ...baseInput, opacity: isLocked ? 0.4 : 1 }}
-        />
-      );
-    }
     const val = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
     return <input type="text" value={val} onChange={e => set(col.key, e.target.value)} disabled={sketchMode} style={baseInput} />;
   };
@@ -639,7 +594,7 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
         <div className="flex-shrink-0 relative" style={{ overflow: 'hidden', maxHeight: '52vh' }}>
           <SketchCanvas ref={sketchRef} active={sketchMode} color={sketchColor} strokeWidth={3}
             initialData={initialEntry?.sheet_sketch_data || ''} />
-          <div onScroll={() => setOpenComboKey(null)}
+          <div
             style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '52vh', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
             <table style={{ minWidth: totalWidth, tableLayout: 'fixed', borderCollapse: 'collapse' }}>
               <colgroup>
@@ -949,31 +904,6 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
           </div>
         </div>
       </div>
-
-      {/* Custom combobox dropdown (Category/Supplier) — datalist is unreliable on Android */}
-      {openComboKey && comboRect && (
-        <div
-          style={{
-            position: 'fixed', top: comboRect.top + comboRect.height, left: comboRect.left,
-            width: Math.max(comboRect.width, 180), maxHeight: 220, overflowY: 'auto',
-            background: '#fff', border: '1px solid var(--border-mid)', borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(26,19,16,0.18)', zIndex: 1000,
-          }}
-        >
-          {openComboOptions.length === 0 && (
-            <div style={{ padding: '8px 10px', fontSize: '0.65rem', color: 'var(--text-muted)' }}>No matches</div>
-          )}
-          {openComboOptions.map(o => (
-            <button key={o}
-              onMouseDown={e => { e.preventDefault(); set(openComboKey, o); setOpenComboKey(null); }}
-              style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px',
-                fontSize: '0.68rem', fontFamily: 'DM Mono, monospace', background: 'none', border: 'none',
-                borderBottom: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text)' }}>
-              {o}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Photo source choice — Camera vs Gallery */}
       {photoMenuOpen && (
