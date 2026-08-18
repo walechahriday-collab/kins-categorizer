@@ -405,7 +405,8 @@ function loadCustomSuppliers(): string[] {
 let customSupplierNames: string[] = loadCustomSuppliers();
 
 export function getAllSupplierNames(): string[] {
-  return [...SUPPLIER_NAMES, ...customSupplierNames];
+  return [...SUPPLIER_NAMES, ...customSupplierNames]
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 }
 
 export function addCustomSupplier(name: string): void {
