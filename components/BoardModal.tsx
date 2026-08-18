@@ -6,7 +6,7 @@ import {
   DEPARTMENTS, DEPT_CATEGORIES, SUB_CATEGORIES, COLORS,
   DEPT_HEELS, DEPT_SECTIONS, DEPT_SIZES, SEASONS, LOGO_OPTIONS,
   KIDS_SIZES, KIDS_SIZE_RANGES, SUPPLIER_NAMES, SUPPLIER_CODES,
-  DELIVERY_DATE_OPTIONS,
+  DELIVERY_DATE_OPTIONS, getAllSupplierNames, addCustomSupplier,
   ColorVariant, emptyVariant,
   ShoeEntry, emptyEntry,
 } from '@/lib/categories';
@@ -44,6 +44,8 @@ const TRAILING_COLS: ColDef[] = [
 const VARIANT_ACCENT = [
   '#c41515', '#155ac4', '#159650', '#c86400', '#8215c4', '#008ca0',
 ];
+
+const ADD_NEW_SUPPLIER = '__add_new_supplier__';
 
 interface Props {
   open: boolean; onClose: () => void; onSaved: () => void;
@@ -465,13 +467,25 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
     }
     if (col.type === 'select' || col.type === 'dynamic-select') {
       const val = ((entry as unknown) as Record<string, string>)[col.key] ?? '';
-      const options = col.type === 'dynamic-select' ? getDynamicOptions(col.key) : (col.options ?? []);
+      const isSupplier = col.key === 'supplier_name';
+      const options = col.type === 'dynamic-select'
+        ? getDynamicOptions(col.key)
+        : isSupplier ? getAllSupplierNames() : (col.options ?? []);
       const isLocked = col.type === 'dynamic-select' && !entry.department;
       return (
-        <select value={val} onChange={e => set(col.key, e.target.value)}
+        <select value={val} onChange={e => {
+            const v = e.target.value;
+            if (isSupplier && v === ADD_NEW_SUPPLIER) {
+              const name = window.prompt('New supplier name:')?.trim();
+              if (name) { addCustomSupplier(name); set(col.key, name); }
+              return;
+            }
+            set(col.key, v);
+          }}
           disabled={sketchMode || isLocked}
           style={{ ...baseInput, cursor: (sketchMode || isLocked) ? 'default' : 'pointer', appearance: 'auto', opacity: isLocked ? 0.4 : 1 }}>
           <option value="">{isLocked ? '— pick dept —' : '[None]'}</option>
+          {isSupplier && <option value={ADD_NEW_SUPPLIER}>+ Add new supplier…</option>}
           {options.map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       );

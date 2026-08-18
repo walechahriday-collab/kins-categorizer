@@ -387,6 +387,44 @@ export const SUPPLIER_NAMES = [
   'ZUDIC EXPORT',
 ] as const;
 
+// Suppliers added on the fly from the entry form's "+ Add new supplier" option.
+// Kept separate from SUPPLIER_NAMES (which stays the static master list) and
+// persisted to localStorage so they stick around across reloads.
+const CUSTOM_SUPPLIERS_KEY = 'kins_custom_suppliers';
+
+function loadCustomSuppliers(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(CUSTOM_SUPPLIERS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+let customSupplierNames: string[] = loadCustomSuppliers();
+
+export function getAllSupplierNames(): string[] {
+  return [...SUPPLIER_NAMES, ...customSupplierNames];
+}
+
+export function addCustomSupplier(name: string): void {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const alreadyExists = getAllSupplierNames().some(
+    s => s.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (alreadyExists) return;
+  customSupplierNames = [...customSupplierNames, trimmed];
+  if (typeof window !== 'undefined') {
+    try {
+      window.localStorage.setItem(CUSTOM_SUPPLIERS_KEY, JSON.stringify(customSupplierNames));
+    } catch {
+      // ignore storage errors (e.g. private browsing)
+    }
+  }
+}
+
 export type ColorVariant = {
   color: string;
   set_type: string;
