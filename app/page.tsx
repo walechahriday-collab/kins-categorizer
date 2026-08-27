@@ -675,6 +675,7 @@ export default function Home() {
         onSaved={loadEntries}
         initialEntry={editEntry}
         stickySupplier={stickySupplier}
+        existingEntries={entries}
       />
 
       {/* ── Share options modal (Logo / Set Qty overrides, PDF-only — never touches entries) ── */}

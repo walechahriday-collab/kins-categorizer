@@ -51,9 +51,10 @@ interface Props {
   open: boolean; onClose: () => void; onSaved: () => void;
   initialEntry?: ShoeEntry | null;
   stickySupplier?: string;
+  existingEntries?: ShoeEntry[];
 }
 
-export default function BoardModal({ open, onClose, onSaved, initialEntry, stickySupplier }: Props) {
+export default function BoardModal({ open, onClose, onSaved, initialEntry, stickySupplier, existingEntries }: Props) {
   const isEdit = !!initialEntry;
   const [entry, setEntry] = useState<Omit<ShoeEntry, 'id' | 'created_at'>>(emptyEntry());
   const [variants, setVariants] = useState<ColorVariant[]>([emptyVariant()]);
@@ -384,6 +385,22 @@ export default function BoardModal({ open, onClose, onSaved, initialEntry, stick
   };
 
   const handleSave = async () => {
+    // Duplicate article number guard — same supplier + same article number
+    // is almost always a mis-entry, so block it before anything is saved.
+    // A different supplier using the same number is fine and not flagged.
+    const dupSupplier = (entry.supplier_name || '').trim().toLowerCase();
+    const dupArticle = (entry.article_no || '').trim().toLowerCase();
+    if (dupSupplier && dupArticle) {
+      const isDuplicate = (existingEntries || []).some(e =>
+        e.id !== initialEntry?.id &&
+        (e.supplier_name || '').trim().toLowerCase() === dupSupplier &&
+        (e.article_no || '').trim().toLowerCase() === dupArticle
+      );
+      if (isDuplicate) {
+        alert(`Article "${entry.article_no}" already exists for ${entry.supplier_name}. Please try a different article number — duplicate.`);
+        return;
+      }
+    }
     setSaving(true);
     try {
       let sketchData = '';
